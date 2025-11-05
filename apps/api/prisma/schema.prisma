@@ -1,0 +1,98 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model curriculum_areas {
+  id        String   @id @default(cuid())
+  name      String
+  description String?
+  slug      String   @unique
+  subjects  subjects[]
+}
+
+model subjects {
+  id                 String   @id @default(cuid())
+  curriculum_area_id String
+  name               String
+  slug               String   @unique
+  description        String?
+  curriculum_area    curriculum_areas @relation(fields: [curriculum_area_id], references: [id])
+  big_ideas          big_ideas[]
+}
+
+model big_ideas {
+  id         String   @id @default(cuid())
+  subject_id String
+  title      String
+  description String?
+  subject    subjects @relation(fields: [subject_id], references: [id])
+  concepts   concepts[]
+}
+
+model concepts {
+  id          String   @id @default(cuid())
+  big_idea_id String
+  title       String
+  description String?
+  level       Int
+  big_idea    big_ideas @relation(fields: [big_idea_id], references: [id])
+  know_do_statements know_do_statements[]
+}
+
+model know_do_statements {
+  id         String @id @default(cuid())
+  concept_id String
+  text       String
+  type       String
+  level      Int
+  concept    concepts @relation(fields: [concept_id], references: [id])
+}
+
+model users {
+  id         String @id @default(cuid())
+  email      String @unique
+  name       String?
+  role       String @default("teacher")
+  created_at DateTime @default(now())
+  planners   planners[]
+}
+
+model planners {
+  id          String   @id @default(cuid())
+  user_id     String
+  title       String
+  description String?
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+  metadata    Json?
+  user        users @relation(fields: [user_id], references: [id])
+  hexagons    hexagons[]
+  connections hexagon_connections[]
+}
+
+model hexagons {
+  id          String @id @default(cuid())
+  planner_id  String
+  x           Float
+  y           Float
+  size        Float  @default(1)
+  label       String?
+  concept_id  String?
+  free_text   String?
+  settings    Json?
+  planner     planners @relation(fields: [planner_id], references: [id])
+}
+
+model hexagon_connections {
+  id              String @id @default(cuid())
+  planner_id      String
+  from_hexagon_id String
+  to_hexagon_id   String
+  label           String?
+  planner         planners @relation(fields: [planner_id], references: [id])
+}

@@ -1,0 +1,23 @@
+{
+  "name": "Curriculum-Planner-Scotland",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently \"pnpm --filter @cps/web dev\" \"pnpm --filter @cps/api dev\"",
+    "build": "pnpm --filter @cps/web build && pnpm --filter @cps/api build",
+    "start": "pnpm --filter @cps/web start & pnpm --filter @cps/api start",
+    "lint": "pnpm -w run -r lint",
+    "test": "pnpm -w run -r test",
+    "migrate": "pnpm --filter @cps/api prisma migrate deploy",
+    "seed-db": "pnpm --filter @cps/api ts-node --transpile-only scripts/seed.ts",
+    "export-pdf": "pnpm --filter @cps/web export-pdf"
+  },
+  "devDependencies": {
+    "concurrently": "^8.0.1",
+    "typescript": "^5.5.2"
+  }
+}

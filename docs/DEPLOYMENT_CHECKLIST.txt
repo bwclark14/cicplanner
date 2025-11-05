@@ -1,0 +1,13 @@
+Deployment Checklist:
+
+1. Create Supabase project.
+2. Set environment variables in Supabase / GitHub Secrets / Vercel:
+   - NEXT_PUBLIC_SUPABASE_URL
+   - NEXT_PUBLIC_SUPABASE_ANON_KEY
+   - SUPABASE_SERVICE_ROLE_KEY
+   - DATABASE_URL
+   - NEXT_PUBLIC_APP_URL
+3. Run pnpm migrate && pnpm seed-db locally (ensure DATABASE_URL points to Supabase).
+4. Deploy frontend to Vercel and configure env vars.
+5. Deploy backend to Node host (optional) or use serverless.
+6. Test sign-up, create planner, export PDF.
