@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Curriculum Explorer</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styles for a modern, slightly playful look */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6; /* Light gray background */
+        }
+        .scroll-container {
+            max-height: calc(100vh - 4rem); /* Header height + some margin */
+            overflow-y: auto;
+        }
+        .shadow-custom {
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06);
+        }
+        /* Custom scrollbar for aesthetics */
+        .scroll-container::-webkit-scrollbar {
+            width: 6px;
+        }
+        .scroll-container::-webkit-scrollbar-thumb {
+            background-color: #9ca3af;
+            border-radius: 3px;
+        }
+        /* For Grid View Sticky Column (Concept Names) */
+        .sticky-col {
+            position: sticky;
+            left: 0;
+            z-index: 10;
+        }
+        .bg-white.sticky-col {
+            background-color: white !important;
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+
+    <div id="app" class="flex flex-col lg:flex-row h-screen">
+
+        <!-- Sidebar / Filter Panel -->
+        <div class="lg:w-72 w-full p-4 bg-white shadow-xl lg:flex-shrink-0 lg:h-full lg:overflow-y-auto">
+            <h2 class="text-xl font-bold mb-6 text-gray-800 border-b pb-2">Curriculum Filters</h2>
+
+            <!-- Area Filter -->
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Filter by Area</label>
+                <select id="areaFilter" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-purple-500 focus:border-purple-500 transition duration-150">
+                    <!-- Options populated by JS -->
+                </select>
+            </div>
+
+            <!-- Level Filter -->
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Filter by Level</label>
+                <select id="levelFilter" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition duration-150">
+                    <!-- Options populated by JS -->
+                </select>
+            </div>
+
+            <!-- Subject Filter -->
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Filter by Subject</label>
+                <select id="subjectFilter" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition duration-150">
+                    <!-- Options populated by JS -->
+                </select>
+            </div>
+
+            <!-- Statement Type Filter -->
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Statement Type</label>
+                <div class="flex items-center space-x-4">
+                    <button data-type="All" class="type-btn px-4 py-2 rounded-full text-sm font-medium transition duration-200 bg-blue-600 text-white shadow-md">All Types</button>
+                    <button data-type="Know" class="type-btn px-4 py-2 rounded-full text-sm font-medium transition duration-200 bg-gray-200 text-gray-700 hover:bg-gray-300">Know</button>
+                    <button data-type="Do" class="type-btn px-4 py-2 rounded-full text-sm font-medium transition duration-200 bg-gray-200 text-gray-700 hover:bg-gray-300">Do</button>
+                </div>
+            </div>
+
+            <h3 class="text-sm font-bold mt-8 mb-3 text-gray-800 border-t pt-4">View Mode</h3>
+            <!-- View Mode Toggle - Now includes 'View by Level' -->
+            <div class="mb-6 flex flex-wrap items-center space-x-1">
+                <button data-view="List" class="view-btn flex-1 px-3 py-2 rounded-lg text-sm font-medium transition duration-200 bg-indigo-600 text-white shadow-md">List View</button>
+                <button data-view="Grid" class="view-btn flex-1 px-3 py-2 rounded-lg text-sm font-medium transition duration-200 bg-gray-200 text-gray-700 hover:bg-gray-300">Progression Grid</button>
+                <button data-view="Level" class="view-btn flex-1 px-3 py-2 rounded-lg text-sm font-medium transition duration-200 bg-gray-200 text-gray-700 hover:bg-gray-300">View by Level</button>
+            </div>
+
+            <!-- Reset Button -->
+            <button id="resetFilters" class="w-full py-2 mt-4 bg-red-500 text-white rounded-lg hover:bg-red-600 transition duration-200 shadow-md">Reset Filters</button>
+        </div>
+
+        <!-- Main Content Area -->
+        <main class="flex-1 p-6 lg:overflow-y-auto scroll-container">
+            <h1 class="text-3xl font-extrabold text-gray-800 mb-6">Curriculum Progression Map</h1>
+            <!-- List View (Default) -->
+            <div id="curriculumView" class="space-y-8">
+                <!-- Curriculum content will be injected here -->
+            </div>
+            <!-- Grid View (New) -->
+            <div id="curriculumGridView" class="hidden">
+                <!-- Grid content will be injected here -->
+            </div>
+            <!-- Level View (New) -->
+            <div id="curriculumLevelView" class="space-y-8 hidden">
+                <!-- Level content will be injected here -->
+            </div>
+            <div id="noResults" class="hidden mt-10 text-center text-gray-500">
+                <p class="text-lg">No curriculum statements match the current filters. Try adjusting your selections.</p>
+            </div>
+        </main>
+    </div>
+
+    <script type="text/javascript">
+        // --- DATA MODEL ---
+        const LEVELS = ["Early Years", "Level 1", "Level 2", "Level 3", "Level 4"];
+        
+        const CURRICULUM_DATA = [
+            {
+                area: "Technologies",
+                color: "bg-blue-600",
+                bigIdeas: [
+                    {
+                        idea: "Computational Thinking",
+                        concepts: [
+                            {
+                                name: "Algorithm Design",
+                                description: "Understanding the steps and structure required to solve a problem.",
+                                statements: [
+                                    { subject: "Computing Science", level: "Early Years", type: "Know", text: "I know that instructions must be clear and specific for a successful outcome." },
+                                    { subject: "Computing Science", level: "Level 1", type: "Do", text: "I can follow a simple, two-step set of instructions accurately, identifying the start and end points." },
+                                    { subject: "Computing Science", level: "Level 2", type: "Know", text: "I know that algorithms are a sequence of ordered steps used to solve a problem or achieve a goal (sequential logic)." },
+                                    { subject: "Computing Science", level: "Level 3", type: "Do", text: "I can design, test, and debug a simple algorithm using pseudocode or visual blocks, including iteration (loops)." },
+                                    { subject: "Design and Technology", level: "Level 3", type: "Know", text: "I know that efficient production requires a logical sequence of steps and resources." },
+                                    { subject: "Design and Technology", level: "Level 4", type: "Do", text: "I can refine and optimise an existing design process to reduce waste and time, justifying the changes based on performance metrics." },
+                                    { subject: "Business Education", level: "Level 4", type: "Do", text: "I can model complex business processes using flowcharts to identify inefficiencies and single points of failure." }
+                                ]
+                            },
+                            {
+                                name: "Data Representation",
+                                description: "How data is collected, stored, and managed digitally.",
+                                statements: [
+                                    { subject: "Computing Science", level: "Level 3", type: "Know", text: "I know that all digital data (text, images, sound) can be represented in binary form (bits and bytes) and understand the concept of a sampling rate." },
+                                    { subject: "Computing Science", level: "Level 4", type: "Do", text: "I can convert simple denary numbers to binary and vice versa, explaining the limits of storage and the trade-offs of different compression techniques." },
+                                    { subject: "Business Education", level: "Level 2", type: "Know", text: "I know that personal data must be stored securely and responsibly according to privacy laws (e.g., GDPR principles)." }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        idea: "Digital Literacy and Safety",
+                        concepts: [
+                            {
+                                name: "Digital Citizenship",
+                                description: "Understanding responsible, ethical, and safe use of technology.",
+                                statements: [
+                                    { subject: "Computing Science", level: "Level 1", type: "Know", text: "I know I must ask permission before sharing photos of myself or others online." },
+                                    { subject: "Computing Science", level: "Level 3", type: "Do", text: "I can evaluate online sources for bias, credibility, and accuracy using multiple checks." },
+                                    { subject: "Computing Science", level: "Level 4", type: "Do", text: "I can apply advanced privacy settings to manage my digital footprint and understand the permanence of online actions." }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                area: "Expressive Arts",
+                color: "bg-purple-600",
+                bigIdeas: [
+                    {
+                        idea: "Creativity and Imagination",
+                        concepts: [
+                            {
+                                name: "Idea Generation and Exploration",
+                                description: "Developing original concepts and exploring various artistic forms.",
+                                statements: [
+                                    { subject: "Art", level: "Early Years", type: "Do", text: "I can explore different materials and textures to create marks and expressive pieces, naming the colors I use." },
+                                    { subject: "Drama", level: "Level 1", type: "Do", text: "I can use my voice, movement, and body to represent simple characters and express basic emotions in short role-play." },
+                                    { subject: "Music", level: "Level 2", type: "Know", text: "I know that musical compositions have structure (e.g., A/B sections, verse/chorus) and that elements like tempo and dynamics influence mood." },
+                                    { subject: "Art", level: "Level 3", type: "Know", text: "I know about the work of historical artists from different cultures and how their techniques relate to my own work." },
+                                    { subject: "Drama", level: "Level 4", type: "Know", text: "I know how complex technical elements like lighting states, sound cues, and staging contribute to the atmosphere and narrative of a performance." },
+                                    { subject: "Music", level: "Level 4", type: "Do", text: "I can improvise melodies over a given chord progression, demonstrating musical sensitivity and awareness of key signatures." }
+                                ]
+                            },
+                            {
+                                name: "Performance and Presentation",
+                                description: "The execution of artistic work for an audience.",
+                                statements: [
+                                    { subject: "Drama", level: "Level 3", type: "Do", text: "I can perform a short monologue or scene with controlled voice, confidence, and appropriate expression, justifying my character choices." },
+                                    { subject: "Music", level: "Level 4", type: "Do", text: "I can read and interpret complex musical notation (including ledger lines and syncopation) and perform a piece accurately in an ensemble." },
+                                    { subject: "Art", level: "Level 2", type: "Know", text: "I know how to safely display and present my artwork to others, considering composition and context." },
+                                    { subject: "Art", level: "Level 4", type: "Do", text: "I can professionally curate and present a portfolio of work, documenting my process and explaining my creative rationale and critical intent." }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        idea: "Aesthetic Appreciation",
+                        concepts: [
+                            {
+                                name: "Critical Analysis",
+                                description: "Evaluating and interpreting artistic works.",
+                                statements: [
+                                    { subject: "Art", level: "Level 2", type: "Do", text: "I can use simple descriptive language (e.g., texture, line, color) to talk about the artwork of others." },
+                                    { subject: "Drama", level: "Level 3", type: "Know", text: "I know that context (historical, social, political) influences the meaning of an artwork or performance." },
+                                    { subject: "Music", level: "Level 4", type: "Do", text: "I can write a critical review of a musical performance or composition, justifying my opinions with reference to musical theory and stylistic conventions." }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                area: "Health and Wellbeing",
+                color: "bg-green-600",
+                bigIdeas: [
+                    {
+                        idea: "Emotional Resilience",
+                        concepts: [
+                            {
+                                name: "Self-Awareness and Regulation",
+                                description: "Recognising and managing personal emotions and reactions.",
+                                statements: [
+                                    { subject: "Health and Wellbeing", level: "Early Years", type: "Know", text: "I can name common feelings like happy, sad, or angry and point to where I feel them in my body." },
+                                    { subject: "Health and Wellbeing", level: "Level 1", type: "Do", text: "I can identify a safe adult to talk to when I am upset and use a simple calming strategy like counting to five." },
+                                    { subject: "Health and Wellbeing", level: "Level 2", type: "Know", text: "I know that managing my breathing and thinking positive thoughts can help me feel calm and handle frustration." },
+                                    { subject: "Health and Wellbeing", level: "Level 3", type: "Do", text: "I can use and choose from various strategies, like mindfulness, sport, or writing, to manage stress effectively." },
+                                    { subject: "Health and Wellbeing", level: "Level 4", type: "Know", text: "I know the impact of both positive and negative self-talk on my mental health and recognise signs of emotional distress in myself and others." },
+                                    { subject: "Health and Wellbeing", level: "Level 4", type: "Do", text: "I can initiate and maintain healthy boundaries in relationships and seek professional help when needed." }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        idea: "Physical Development",
+                        concepts: [
+                            {
+                                name: "Physical Literacy",
+                                description: "The motivation, confidence, physical competence, knowledge, and understanding to value and take responsibility for engagement in physical activities for life.",
+                                statements: [
+                                    { subject: "PE", level: "Early Years", type: "Do", text: "I can move my body in different basic ways (running, hopping, skipping) and balance on one foot briefly." },
+                                    { subject: "PE", level: "Level 2", type: "Know", text: "I know the importance of warm-ups and cool-downs to prevent injury and understand the basic function of the heart during exercise." },
+                                    { subject: "PE", level: "Level 4", type: "Do", text: "I can create a personalised, balanced fitness plan that targets cardiovascular endurance, muscular strength, and flexibility, and track my progress." }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                area: "Sciences",
+                color: "bg-teal-600",
+                bigIdeas: [
+                    {
+                        idea: "Scientific Inquiry and Investigation",
+                        concepts: [
+                            {
+                                name: "Experimental Design",
+                                description: "Formulating questions, designing fair tests, and collecting data.",
+                                statements: [
+                                    { subject: "Physics", level: "Level 1", type: "Know", text: "I know that experiments help us find answers to questions and can identify things that push or pull." },
+                                    { subject: "Chemistry", level: "Level 2", type: "Do", text: "I can formulate a simple hypothesis (prediction) before conducting an investigation into material changes." },
+                                    { subject: "Biology", level: "Level 3", type: "Do", text: "I can identify, control, and measure variables accurately in a fair test relating to plant growth." },
+                                    { subject: "Chemistry", level: "Level 4", type: "Know", text: "I know the difference between qualitative and quantitative data and can select appropriate methods for collecting each." }
+                                ]
+                            },
+                            {
+                                name: "Earth and Space",
+                                description: "Understanding global and celestial phenomena.",
+                                statements: [
+                                    { subject: "Science", level: "Early Years", type: "Know", text: "I know the names of the seasons and simple weather changes (rain, sun, snow)." },
+                                    { subject: "Physics", level: "Level 2", type: "Do", text: "I can model the rotation of the Earth to explain day and night using a light source." },
+                                    { subject: "Biology", level: "Level 3", type: "Know", text: "I know the structure and function of the major body systems (e.g., digestive, circulatory)." },
+                                    { subject: "Physics", level: "Level 4", type: "Know", text: "I know that celestial bodies (planets, moons) are governed by gravitational forces and that the universe is vast and expanding." }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            }
+        ];
+
+        // Global state for filters
+        let filters = {
+            area: 'All', 
+            level: 'All', 
+            subject: 'All',
+            type: 'All',
+            view: 'List' // 'List', 'Grid', or 'Level'
+        };
+
+        // --- UTILITY FUNCTIONS ---
+
+        // Function to extract unique subjects and areas and populate the dropdowns
+        function setupFilters() {
+            const allSubjects = new Set(['All']);
+            const allAreas = new Set(['All']); 
+
+            CURRICULUM_DATA.forEach(area => {
+                allAreas.add(area.area); 
+                area.bigIdeas.forEach(idea => {
+                    idea.concepts.forEach(concept => {
+                        concept.statements.forEach(statement => {
+                            allSubjects.add(statement.subject);
+                        });
+                    });
+                });
+            });
+
+            // Populate Area Filter
+            const areaFilterEl = document.getElementById('areaFilter');
+            areaFilterEl.innerHTML = Array.from(allAreas).sort().map(area => 
+                `<option value="${area}">${area}</option>`
+            ).join('');
+
+            // Populate Subject Filter
+            const subjectFilterEl = document.getElementById('subjectFilter');
+            subjectFilterEl.innerHTML = Array.from(allSubjects).sort().map(sub => 
+                `<option value="${sub}">${sub}</option>`
+            ).join('');
+
+            // Populate Level Filter
+            const levelFilterEl = document.getElementById('levelFilter');
+            levelFilterEl.innerHTML = ['All', ...LEVELS].map(level => 
+                `<option value="${level}">${level}</option>`
+            ).join('');
+        }
+
+        // --- RENDERING FUNCTIONS ---
+
+        function getLevelColor(level) {
+            switch (level) {
+                case 'Early Years': return 'bg-green-500 border-green-500';
+                case 'Level 1': return 'bg-yellow-500 border-yellow-500';
+                case 'Level 2': return 'bg-orange-500 border-orange-500';
+                case 'Level 3': return 'bg-red-500 border-red-500';
+                case 'Level 4': return 'bg-indigo-500 border-indigo-500';
+                default: return 'bg-gray-400 border-gray-400';
+            }
+        }
+
+        function toggleConcept(element) {
+            // Find the concept-statements div (it is usually the third child after the title and description)
+            const statementsDiv = element.closest('.bg-white').querySelector('.concept-statements'); 
+            statementsDiv.classList.toggle('hidden');
+        }
+        
+        // Expose toggleConcept globally for the inline onclick handler
+        window.toggleConcept = toggleConcept;
+
+        function renderCurriculum() {
+            const container = document.getElementById('curriculumView');
+            let outputHTML = '';
+            let totalStatements = 0;
+
+            CURRICULUM_DATA.filter(areaData => {
+                const areaMatch = filters.area === 'All' || areaData.area === filters.area;
+                return areaMatch;
+            }).forEach(areaData => {
+                let areaHTML = '';
+                let areaStatementCount = 0;
+
+                areaData.bigIdeas.forEach(ideaData => {
+                    let ideaHTML = '';
+
+                    ideaData.concepts.forEach(conceptData => {
+                        // Filter statements based on current filters
+                        const filteredStatements = conceptData.statements.filter(stmt => {
+                            const levelMatch = filters.level === 'All' || stmt.level === filters.level;
+                            const subjectMatch = filters.subject === 'All' || stmt.subject === filters.subject;
+                            const typeMatch = filters.type === 'All' || stmt.type === filters.type;
+                            return levelMatch && subjectMatch && typeMatch;
+                        });
+
+                        if (filteredStatements.length > 0) {
+                            areaStatementCount += filteredStatements.length;
+                            totalStatements += filteredStatements.length;
+
+                            // Sort statements by Level
+                            filteredStatements.sort((a, b) => LEVELS.indexOf(a.level) - LEVELS.indexOf(b.level));
+
+                            const statementsHTML = filteredStatements.map(stmt => {
+                                const levelColor = getLevelColor(stmt.level).split(' ')[0]; // just get bg-color
+                                const typeIcon = stmt.type === 'Know' ? '🧠' : '🛠️';
+                                return `
+                                    <div class="p-3 mb-2 rounded-lg bg-white border border-gray-100 transition duration-150 shadow-sm hover:shadow-md">
+                                        <div class="flex items-center justify-between mb-1">
+                                            <span class="text-sm font-semibold ${levelColor} text-white px-2 py-0.5 rounded-full shadow-inner">${stmt.level}</span>
+                                            <span class="text-xs text-gray-500">${stmt.subject}</span>
+                                        </div>
+                                        <p class="text-sm text-gray-700">${typeIcon} <span class="font-medium text-gray-900">${stmt.type}:</span> ${stmt.text}</p>
+                                    </div>
+                                `;
+                            }).join('');
+
+                            ideaHTML += `
+                                <div class="bg-white p-4 rounded-xl shadow-custom transition duration-300 hover:ring-2 hover:ring-blue-200">
+                                    <h4 class="text-lg font-bold text-gray-800 mb-2 cursor-pointer flex justify-between items-center" 
+                                        onclick="toggleConcept(this)">
+                                        <span>Concept: ${conceptData.name}</span>
+                                        <span class="text-sm font-normal text-gray-500">${filteredStatements.length} statement(s)</span>
+                                    </h4>
+                                    <p class="text-sm text-gray-500 italic mb-4">${conceptData.description}</p>
+                                    <div class="concept-statements hidden mt-3 space-y-2">
+                                        ${statementsHTML}
+                                    </div>
+                                </div>
+                            `;
+                        }
+                    });
+
+                    if (ideaHTML) {
+                        areaHTML += `
+                            <div class="mb-6">
+                                <h3 class="text-xl font-extrabold text-gray-700 mb-4 flex items-center space-x-2">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M3.636 5.636l.707.707M21 12h-1M4 12H3m3.364 1.636l-.707-.707M19.364 19.364l-.707-.707M6.343 17.657L5.636 18.364" />
+                                    </svg>
+                                    <span>Big Idea: ${ideaData.idea}</span>
+                                </h3>
+                                <div class="space-y-4">
+                                    ${ideaHTML}
+                                </div>
+                            </div>
+                        `;
+                    }
+                });
+
+                if (areaHTML) {
+                    const areaColor = areaData.color;
+                    outputHTML += `
+                        <div class="border-t-4 ${areaColor} rounded-xl bg-white p-6 shadow-2xl">
+                            <h2 class="text-2xl font-black mb-4 text-gray-900 flex justify-between items-center">
+                                <span>Curriculum Area: ${areaData.area}</span>
+                                <span class="text-sm font-medium ${areaColor.replace('bg-', 'text-')}">${areaStatementCount} Statements</span>
+                            </h2>
+                            ${areaHTML}
+                        </div>
+                    `;
+                }
+            });
+
+            container.innerHTML = outputHTML;
+            document.getElementById('noResults').classList.toggle('hidden', totalStatements > 0);
+        }
+        
+        function renderGridView() {
+            const container = document.getElementById('curriculumGridView');
+            container.innerHTML = '';
+            
+            // 1. Collect all statements matching Area, Subject, and Type filters
+            const allFilteredStatements = [];
+            CURRICULUM_DATA.filter(areaData => filters.area === 'All' || areaData.area === filters.area)
+                        .forEach(areaData => {
+                areaData.bigIdeas.forEach(ideaData => {
+                    ideaData.concepts.forEach(conceptData => {
+                        const filtered = conceptData.statements.filter(stmt => {
+                            // NOTE: Level filter is not applied here, as we want ALL levels for the grid columns
+                            const subjectMatch = filters.subject === 'All' || stmt.subject === filters.subject;
+                            const typeMatch = filters.type === 'All' || stmt.type === filters.type;
+                            return subjectMatch && typeMatch;
+                        });
+                        
+                        filtered.forEach(stmt => {
+                            allFilteredStatements.push({ ...stmt, concept: conceptData.name, area: areaData.area });
+                        });
+                    });
+                });
+            });
+
+            if (allFilteredStatements.length === 0) {
+                container.classList.remove('hidden');
+                document.getElementById('curriculumView').classList.add('hidden');
+                document.getElementById('curriculumLevelView').classList.add('hidden');
+                document.getElementById('noResults').classList.remove('hidden');
+                return;
+            }
+
+            // 2. Aggregate statements by Concept and Level
+            const conceptsMap = new Map();
+            const uniqueConcepts = new Set();
+            
+            allFilteredStatements.forEach(stmt => {
+                uniqueConcepts.add(stmt.concept);
+                const key = `${stmt.concept}|${stmt.level}`;
+                if (!conceptsMap.has(key)) {
+                    conceptsMap.set(key, []);
+                }
+                conceptsMap.get(key).push(stmt);
+            });
+
+            // 3. Build the Grid HTML
+            const conceptRows = Array.from(uniqueConcepts).sort();
+            
+            let gridHTML = `<div class="p-4 bg-white rounded-xl shadow-2xl overflow-x-auto">
+                <h2 class="text-xl font-bold mb-4 text-gray-800">Progression Grid View</h2>
+                <div class="mb-4 text-sm text-gray-600">
+                    <p>Current Area Filter: <span class="font-semibold">${filters.area}</span> | 
+                    Current Subject Filter: <span class="font-semibold">${filters.subject}</span> | 
+                    Statement Type: <span class="font-semibold">${filters.type}</span></p>
+                </div>
+                <table class="min-w-full divide-y divide-gray-300 border border-gray-300 rounded-lg">
+                    <thead class="bg-gray-100">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-bold text-gray-800 uppercase tracking-wider sticky-col bg-gray-100 border-r border-gray-300 w-48 sticky top-0 z-20">
+                                Concept
+                            </th>
+                            ${LEVELS.map(level => `
+                                <th class="px-3 py-3 text-center text-xs font-bold text-gray-800 uppercase tracking-wider sticky top-0 z-10 bg-gray-100">
+                                    ${level}
+                                </th>
+                            `).join('')}
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200">
+                        ${conceptRows.map(conceptName => {
+                            // Find the area for display (assuming a concept belongs primarily to one area for simplicity in this view)
+                            const primaryArea = allFilteredStatements.find(s => s.concept === conceptName)?.area || '';
+
+                            return `
+                                <tr class="hover:bg-blue-50 transition duration-100">
+                                    <td class="px-6 py-4 text-sm font-bold text-gray-900 bg-white sticky-col border-r border-gray-200 shadow-md">
+                                        ${conceptName}
+                                        <span class="block text-xs font-normal text-gray-500 italic mt-1">(${primaryArea})</span>
+                                    </td>
+                                    ${LEVELS.map(level => {
+                                        const statements = conceptsMap.get(`${conceptName}|${level}`) || [];
+                                        const cellContent = statements.map(stmt => {
+                                            const typeClass = stmt.type === 'Know' ? 'bg-indigo-100 text-indigo-800' : 'bg-pink-100 text-pink-800';
+                                            const typeIcon = stmt.type === 'Know' ? '🧠' : '🛠️';
+                                            return `<div class="p-2 my-1 rounded-lg text-xs ${typeClass} shadow-sm border border-transparent hover:border-indigo-300">
+                                                <span class="font-bold">${typeIcon} ${stmt.subject}:</span> ${stmt.text}
+                                            </div>`;
+                                        }).join('');
+
+                                        return `
+                                            <td class="p-2 align-top bg-white border-l border-gray-200">
+                                                ${cellContent || '<p class="text-center text-gray-400 text-xs italic">N/A</p>'}
+                                            </td>
+                                        `;
+                                    }).join('')}
+                                </tr>
+                            `;
+                        }).join('')}
+                    </tbody>
+                </table>
+            </div>`;
+
+            container.innerHTML = gridHTML;
+            container.classList.remove('hidden');
+            document.getElementById('curriculumView').classList.add('hidden');
+            document.getElementById('curriculumLevelView').classList.add('hidden');
+            document.getElementById('noResults').classList.add('hidden');
+        }
+
+        /**
+         * Renders the curriculum grouped by Level, with Area and Concept details nested inside.
+         */
+        function renderLevelView() {
+            const container = document.getElementById('curriculumLevelView');
+            if (!container) return; 
+            container.innerHTML = '';
+            
+            let outputHTML = '';
+            let totalStatements = 0;
+
+            LEVELS.forEach(level => {
+                let levelHTML = '';
+                let levelStatementCount = 0;
+
+                // 1. Iterate over Areas (Rows)
+                CURRICULUM_DATA.filter(areaData => filters.area === 'All' || areaData.area === filters.area)
+                            .forEach(areaData => {
+                    let areaStatementsHTML = '';
+                    let areaStatementCountForLevel = 0;
+                    const areaColor = areaData.color;
+
+                    // 2. Collect all statements for this Level + Area + other filters
+                    areaData.bigIdeas.forEach(ideaData => {
+                        ideaData.concepts.forEach(conceptData => {
+                            const filteredStatements = conceptData.statements.filter(stmt => {
+                                const levelMatch = stmt.level === level; // Only statements for the current Level
+                                const subjectMatch = filters.subject === 'All' || stmt.subject === filters.subject;
+                                const typeMatch = filters.type === 'All' || stmt.type === filters.type;
+                                return levelMatch && subjectMatch && typeMatch;
+                            });
+                            
+                            if (filteredStatements.length > 0) {
+                                areaStatementCountForLevel += filteredStatements.length;
+
+                                // Display concept and statements
+                                const statementsHTML = filteredStatements.map(stmt => {
+                                    const typeIcon = stmt.type === 'Know' ? '🧠' : '🛠️';
+                                    const typeClass = stmt.type === 'Know' ? 'bg-indigo-100 text-indigo-800' : 'bg-pink-100 text-pink-800';
+
+                                    return `<div class="p-2 my-1 rounded-lg text-xs ${typeClass} shadow-sm">
+                                        <span class="font-bold">${typeIcon} ${stmt.type} (${stmt.subject}):</span> ${stmt.text}
+                                    </div>`;
+                                }).join('');
+
+                                areaStatementsHTML += `
+                                    <div class="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                                        <h4 class="font-semibold text-sm text-gray-700">Concept: ${conceptData.name}</h4>
+                                        <div class="mt-2 space-y-1">
+                                            ${statementsHTML}
+                                        </div>
+                                    </div>
+                                `;
+                            }
+                        });
+                    });
+
+                    if (areaStatementCountForLevel > 0) {
+                        levelStatementCount += areaStatementCountForLevel;
+                        const areaTextColor = areaColor.replace('bg-', 'text-');
+
+                        levelHTML += `
+                            <div class="bg-white p-5 rounded-xl shadow-custom transition duration-300 border-l-4 ${areaColor.replace('bg-', 'border-')}">
+                                <h3 class="text-xl font-bold text-gray-800 mb-3 flex justify-between items-center">
+                                    <span class="${areaTextColor}">Curriculum Area: ${areaData.area}</span>
+                                    <span class="text-sm font-medium ${areaTextColor}">${areaStatementCountForLevel} Statements</span>
+                                </h3>
+                                ${areaStatementsHTML}
+                            </div>
+                        `;
+                    }
+                }); // End Area loop
+                
+                if (levelStatementCount > 0) {
+                    totalStatements += levelStatementCount;
+                    const levelColor = getLevelColor(level).split(' ')[0]; // just get bg-color
+
+                    outputHTML += `
+                        <div class="p-6 bg-white rounded-xl shadow-2xl border-t-8 ${levelColor} border-b-2">
+                            <h2 class="text-2xl font-black mb-6 text-gray-900 flex items-center">
+                                <span class="text-3xl mr-3" role="img" aria-label="Star">${level === 'Early Years' ? '👶' : '⭐'}</span>
+                                Progression for: ${level} 
+                                <span class="ml-4 text-sm font-medium text-gray-500">(${levelStatementCount} Total Statements)</span>
+                            </h2>
+                            <div class="space-y-6">
+                                ${levelHTML}
+                            </div>
+                        </div>
+                    `;
+                }
+            }); // End Level loop
+
+            container.innerHTML = outputHTML;
+            // Set visibility
+            container.classList.remove('hidden'); 
+            document.getElementById('curriculumView').classList.add('hidden');
+            document.getElementById('curriculumGridView').classList.add('hidden');
+            document.getElementById('noResults').classList.toggle('hidden', totalStatements > 0);
+        }
+
+        function toggleView(mode) {
+            filters.view = mode;
+
+            // Hide all view containers initially
+            document.getElementById('curriculumView').classList.add('hidden');
+            document.getElementById('curriculumGridView').classList.add('hidden');
+            document.getElementById('curriculumLevelView').classList.add('hidden');
+            
+            // Update button styles
+            document.querySelectorAll('.view-btn').forEach(b => {
+                if (b.dataset.view === mode) {
+                    b.classList.remove('bg-gray-200', 'text-gray-700', 'hover:bg-gray-300');
+                    b.classList.add('bg-indigo-600', 'text-white', 'shadow-md');
+                } else {
+                    b.classList.remove('bg-indigo-600', 'text-white', 'shadow-md');
+                    b.classList.add('bg-gray-200', 'text-gray-700', 'hover:bg-gray-300');
+                }
+            });
+
+            // Call the correct rendering function
+            if (mode === 'Grid') {
+                renderGridView();
+            } else if (mode === 'Level') {
+                renderLevelView();
+            } 
+            else {
+                renderCurriculum();
+            }
+        }
+
+
+        // --- EVENT HANDLERS ---
+
+        function handleFilterChange(e) {
+            filters.area = document.getElementById('areaFilter').value; 
+            filters.level = document.getElementById('levelFilter').value;
+            filters.subject = document.getElementById('subjectFilter').value;
+            
+            // Re-render based on current view mode
+            if (filters.view === 'Grid') {
+                renderGridView();
+            } else if (filters.view === 'Level') {
+                renderLevelView();
+            } else {
+                renderCurriculum();
+            }
+        }
+
+        function handleTypeToggle(e) {
+            const btn = e.target.closest('.type-btn');
+            if (!btn) return;
+
+            // Update filters state
+            filters.type = btn.dataset.type;
+
+            // Update button styles
+            document.querySelectorAll('.type-btn').forEach(b => {
+                if (b.dataset.type === filters.type) {
+                    b.classList.remove('bg-gray-200', 'text-gray-700', 'hover:bg-gray-300');
+                    b.classList.add('bg-blue-600', 'text-white', 'shadow-md');
+                } else {
+                    b.classList.remove('bg-blue-600', 'text-white', 'shadow-md');
+                    b.classList.add('bg-gray-200', 'text-gray-700', 'hover:bg-gray-300');
+                }
+            });
+
+            // Re-render based on current view mode
+            if (filters.view === 'Grid') {
+                renderGridView();
+            } else if (filters.view === 'Level') {
+                renderLevelView();
+            } else {
+                renderCurriculum();
+            }
+        }
+
+        function resetAllFilters() {
+            // Keep the current view mode when resetting other filters
+            filters = { area: 'All', level: 'All', subject: 'All', type: 'All', view: filters.view }; 
+            
+            // Reset dropdowns
+            document.getElementById('areaFilter').value = 'All'; 
+            document.getElementById('levelFilter').value = 'All';
+            document.getElementById('subjectFilter').value = 'All';
+            
+            // Reset type buttons (ensure 'All' is selected and styled)
+            document.querySelectorAll('.type-btn').forEach(b => {
+                if (b.dataset.type === 'All') {
+                    b.classList.remove('bg-gray-200', 'text-gray-700', 'hover:bg-gray-300');
+                    b.classList.add('bg-blue-600', 'text-white', 'shadow-md');
+                } else {
+                    b.classList.remove('bg-blue-600', 'text-white', 'shadow-md');
+                    b.classList.add('bg-gray-200', 'text-gray-700', 'hover:bg-gray-300');
+                }
+            });
+            
+            // Render based on current view
+            if (filters.view === 'Grid') {
+                renderGridView();
+            } else if (filters.view === 'Level') {
+                renderLevelView();
+            } else {
+                renderCurriculum();
+            }
+        }
+
+
+        // --- INITIALIZATION ---
+
+        window.onload = function() {
+            setupFilters();
+            renderCurriculum(); // Default to List view
+
+            // Attach event listeners
+            document.getElementById('areaFilter').addEventListener('change', handleFilterChange); 
+            document.getElementById('levelFilter').addEventListener('change', handleFilterChange);
+            document.getElementById('subjectFilter').addEventListener('change', handleFilterChange);
+            document.getElementById('resetFilters').addEventListener('click', resetAllFilters);
+            document.querySelector('.flex.items-center.space-x-4').addEventListener('click', handleTypeToggle);
+            
+            // View Toggle Listener
+            document.querySelectorAll('.view-btn').forEach(btn => {
+                btn.addEventListener('click', () => toggleView(btn.dataset.view));
+            });
+        };
+    </script>
+</body>
+</html>
