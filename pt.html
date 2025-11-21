@@ -28,6 +28,19 @@
         .item-transition:active {
             box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
         }
+
+        /* --- HEXAGON SHAPE DEFINITION --- */
+        /* Applies the clip-path to create the hexagonal shape */
+        .hexagon-shape {
+            /* Defines the six vertices of the hexagon */
+            clip-path: polygon(50% 0%, 95% 25%, 95% 75%, 50% 100%, 5% 75%, 5% 25%);
+            /* Prevents border-radius from interfering with the clip-path */
+            border-radius: 0; 
+            padding: 20px 20px; /* Increased padding for better text flow inside the shape */
+            line-height: 1.4; /* Slightly looser line-height for better readability */
+            box-sizing: border-box; /* Ensures padding is calculated inward */
+        }
+        
     </style>
 </head>
 <body class="overflow-hidden">
@@ -227,6 +240,7 @@
 
         const getElementCenter = (el, canvasRect) => {
             const rect = el.getBoundingClientRect();
+            // The bounding box is still a rectangle, so this calculation remains correct for the center.
             return {
                 x: (rect.left + rect.right) / 2 - canvasRect.left,
                 y: (rect.top + rect.bottom) / 2 - canvasRect.top,
@@ -443,8 +457,17 @@
         // --- Drag and Drop Logic (Canvas Items) ---
 
         function handleDragStart(e, id, currentX, currentY) {
+            // Check for connection mode interruption (prevent drag if in connection mode)
+            if (state.connectionMode) { 
+                // Only allow single-tap/click to connect in this mode
+                if (e.type === 'touchstart' || e.type === 'mousedown') {
+                     handleConnectClick(e, id);
+                }
+                e.preventDefault(); 
+                return; 
+            }
+            
             if (e.button !== 0 && !e.touches) return; // Only allow left click or touch
-            if (state.connectionMode) { e.preventDefault(); return; }
             
             dismissContextMenu();
             
@@ -481,7 +504,7 @@
             if (!state.isDragging || !state.draggedItemId) return;
             
             const clientX = e.clientX || e.touches?.[0]?.clientX;
-            const clientY = e.touches?.[0]?.clientY;
+            const clientY = e.clientY || e.touches?.[0]?.clientY;
             if (typeof clientX === 'undefined' || typeof clientY === 'undefined') return;
             
             // Prevent scrolling on mobile during drag
@@ -546,7 +569,7 @@
 
         // --- Drag and Drop Logic (Drawer to Canvas) ---
 
-        // UPDATED: This now reads the payload from the element's data attribute
+        // Reads the payload from the element's data attribute
         function handleStatementDragStart(e) {
             const dragPayload = e.currentTarget.dataset.payload;
             
@@ -583,8 +606,8 @@
                     addDoc(itemsRef, {
                         type: 'Statement',
                         text: dragData.text,
-                        x: dropX - 120, // Offset to center the dropped item
-                        y: dropY - 40, 
+                        x: dropX - 140, // Offset to center the dropped item (half of 280px)
+                        y: dropY - 110,  // Offset to center the dropped item (half of 220px)
                         color: dragData.color,
                         level: dragData.level,
                         knowDo: dragData.knowDo,
@@ -699,9 +722,16 @@
                 const isSource = state.sourceItemId === item.id;
                 const isTargetCandidate = state.connectionMode && !isSource;
 
+                // --- Hexagon specific sizing and class ---
+                const ITEM_WIDTH = 280;
+                const ITEM_HEIGHT = 220; 
+                const NOTE_HEIGHT = 120;
+                
                 const baseColor = isStatement ? item.color : 'bg-yellow-400';
+                
+                // Statements are hexagons, Notes are rounded rectangles for distinction
                 const itemClass = isStatement ? 
-                    `${baseColor} text-white p-3 rounded-lg shadow-lg cursor-move item-transition` : 
+                    `${baseColor} text-white shadow-xl cursor-move item-transition hexagon-shape` : 
                     `${baseColor} text-gray-800 p-3 rounded-lg shadow-lg border border-gray-300 cursor-move item-transition`;
 
                 let containerClasses = itemClass;
@@ -711,21 +741,26 @@
                     containerClasses += ' hover:ring-4 ring-offset-2 ring-green-400 transform hover:scale-[1.05]';
                 }
 
-                // Inner content for the card
-                const innerContent = isNote ? `
-                    <p class="text-xs font-bold uppercase mb-1">Teacher Note</p>
-                    <p class="text-sm mt-2 text-gray-800 italic">${item.text}</p>
-                ` : `
-                    <p class="text-xs font-bold uppercase mb-1">
-                        <span class="bg-black/20 px-2 py-0.5 rounded-full text-xs font-medium mr-1">
-                            ${item.knowDo} | ${item.level}
-                        </span>
-                    </p>
-                    <p class="text-sm font-medium text-white">${item.text}</p>
-                    <div class="text-xs mt-1 pt-1 border-t border-white/30 font-medium opacity-80">
-                        Concept: ${item.concept}
-                    </div>
-                `;
+                // Inner content for the card (Note requires different styling/layout)
+                let innerContent;
+                if (isNote) {
+                     innerContent = `
+                        <p class="text-xs font-bold uppercase mb-1">Teacher Note</p>
+                        <p class="text-sm mt-2 text-gray-800 italic">${item.text}</p>
+                    `;
+                } else {
+                     // Statement content structure (SIMPLIFIED: Know/Do & Subject only)
+                     innerContent = `
+                        <div class="flex flex-col h-full justify-center items-center text-center">
+                            <div class="mb-3">
+                                <span class="bg-black/20 px-3 py-1 rounded-full text-xs font-bold uppercase text-white shadow-md">
+                                    ${item.knowDo} | ${item.subject}
+                                </span>
+                            </div>
+                            <p class="text-sm font-medium text-white leading-snug">${item.text}</p>
+                        </div>
+                    `;
+                }
 
                 const connectButton = isSource ? `
                     <button 
@@ -744,33 +779,45 @@
                     </button>
                 `;
 
+                // --- Component Structure for Hexagon vs. Note ---
+                let itemStructure = '';
+                if (isStatement) {
+                    // Statement (Hexagon) structure: Content is now vertically centered
+                    itemStructure = `
+                        <div class="flex flex-col h-full justify-center relative">
+                            <div class="w-full text-center">
+                                ${innerContent}
+                            </div>
+                            <div class="absolute bottom-2 right-2">
+                                ${connectButton}
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    // Note (Rounded Rect) structure: Standard layout
+                    itemStructure = `
+                        <div class="flex justify-between items-start">
+                            ${innerContent}
+                            ${connectButton}
+                        </div>
+                    `;
+                }
+
 
                 return `
                     <div
                         id="item-${item.id}"
                         class="${containerClasses}"
-                        style="position: absolute; left: ${item.x}px; top: ${item.y}px; width: 240px; min-height: ${isNote ? '100px' : '80px'}; z-index: ${isMoving ? 1000 : (isSource ? 100 : 10)};"
+                        style="position: absolute; left: ${item.x}px; top: ${item.y}px; 
+                                width: ${isStatement ? ITEM_WIDTH : '240'}px; 
+                                height: ${isStatement ? ITEM_HEIGHT : NOTE_HEIGHT}px; 
+                                z-index: ${isMoving ? 1000 : (isSource ? 100 : 10)};"
                         onmousedown="handleDragStart(event, '${item.id}', ${item.x}, ${item.y})"
                         ontouchstart="handleDragStart(event, '${item.id}', ${item.x}, ${item.y})"
                         oncontextmenu="handleContextMenu(event, '${item.id}')"
                         ${isTargetCandidate ? `onclick="handleConnectClick(event, '${item.id}')"` : ''}
                     >
-                        <div class="flex justify-between items-start">
-                            ${isNote ? `<p class="text-xs font-bold uppercase mb-1">Teacher Note</p>` : `<p class="text-xs font-bold uppercase mb-1">
-                                <span class="bg-white/20 px-2 py-0.5 rounded-full text-xs font-medium mr-1">
-                                    ${item.knowDo} | ${item.level}
-                                </span>
-                            </p>`}
-                            ${connectButton}
-                        </div>
-                        ${isNote ? `
-                            <p class="text-sm mt-2 text-gray-800 italic">${item.text}</p>
-                        ` : `
-                            <p class="text-sm font-medium text-white">${item.text}</p>
-                            <div class="text-xs mt-1 pt-1 border-t border-white/30 font-medium opacity-80">
-                                Concept: ${item.concept}
-                            </div>
-                        `}
+                        ${itemStructure}
                     </div>
                 `;
             }).join('');
@@ -1153,7 +1200,7 @@
         
         // --- Global Exports (for inline HTML event handlers) ---
         window.updateState = updateState;
-        window.handleStatementDragStart = handleStatementDragStart; // Refactored function
+        window.handleStatementDragStart = handleStatementDragStart;
         window.handleDrop = handleDrop;
         window.handleDragOver = handleDragOver;
         window.handleDragStart = handleDragStart;
