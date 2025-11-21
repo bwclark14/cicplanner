@@ -1,0 +1,1163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Curriculum Planning Board</title>
+    <!-- Load Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Load Inter Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        /* Custom grid background */
+        .canvas-grid {
+            background-image: linear-gradient(to right, #f0f0f0 1px, transparent 1px),
+                              linear-gradient(to bottom, #f0f0f0 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+        /* Custom scrollbar for aesthetics */
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        .item-transition {
+            transition: transform 0.15s ease-out, box-shadow 0.15s ease-out;
+        }
+        .item-transition:active {
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+    </style>
+</head>
+<body class="overflow-hidden">
+    <div id="app" class="flex h-screen w-full bg-gray-50">
+        <!-- Application will be rendered here by JavaScript -->
+        <div class="flex-grow flex items-center justify-center">
+            <div class="animate-pulse text-lg text-gray-500">Loading Application...</div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, setPersistence, browserSessionPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- Configuration and Data ---
+        const LEVELS = ["Early Years", "Level 1", "Level 2", "Level 3", "Level 4"];
+
+        const CURRICULUM_DATA = [
+            {
+                area: "Technologies",
+                color: "bg-blue-600",
+                bigIdeas: [
+                    {
+                        idea: "Computational Thinking",
+                        concepts: [
+                            {
+                                name: "Algorithm Design",
+                                description: "Understanding the steps and structure required to solve a problem.",
+                                statements: [
+                                    { subject: "Computing Science", level: "Early Years", type: "Know", text: "I know that instructions must be clear and specific for a successful outcome." },
+                                    { subject: "Computing Science", level: "Level 1", type: "Do", text: "I can follow a simple, two-step set of instructions accurately, identifying the start and end points." },
+                                    { subject: "Computing Science", level: "Level 2", type: "Know", text: "I know that algorithms are a sequence of ordered steps used to solve a problem or achieve a goal (sequential logic)." },
+                                    { subject: "Computing Science", level: "Level 3", type: "Do", text: "I can design, test, and debug a simple algorithm using pseudocode or visual blocks, including iteration (loops)." },
+                                    { subject: "Design and Technology", level: "Level 3", type: "Know", text: "I know that efficient production requires a logical sequence of steps and resources." },
+                                    { subject: "Design and Technology", level: "Level 4", type: "Do", text: "I can refine and optimise an existing design process to reduce waste and time, justifying the changes based on performance metrics." },
+                                    { subject: "Business Education", level: "Level 4", type: "Do", text: "I can model complex business processes using flowcharts to identify inefficiencies and single points of failure." }
+                                ]
+                            },
+                            {
+                                name: "Data Representation",
+                                description: "How data is collected, stored, and managed digitally.",
+                                statements: [
+                                    { subject: "Computing Science", level: "Level 3", type: "Know", text: "I know that all digital data (text, images, sound) can be represented in binary form (bits and bytes) and understand the concept of a sampling rate." },
+                                    { subject: "Computing Science", level: "Level 4", type: "Do", text: "I can convert simple denary numbers to binary and vice versa, explaining the limits of storage and the trade-offs of different compression techniques." },
+                                    { subject: "Business Education", level: "Level 2", type: "Know", text: "I know that personal data must be stored securely and responsibly according to privacy laws (e.g., GDPR principles)." }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        idea: "Digital Literacy and Safety",
+                        concepts: [
+                            {
+                                name: "Digital Citizenship",
+                                description: "Understanding responsible, ethical, and safe use of technology.",
+                                statements: [
+                                    { subject: "Computing Science", level: "Level 1", type: "Know", text: "I know I must ask permission before sharing photos of myself or others online." },
+                                    { subject: "Computing Science", level: "Level 3", type: "Do", text: "I can evaluate online sources for bias, credibility, and accuracy using multiple checks." },
+                                    { subject: "Computing Science", level: "Level 4", type: "Do", text: "I can apply advanced privacy settings to manage my digital footprint and understand the permanence of online actions." }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                area: "Expressive Arts",
+                color: "bg-purple-600",
+                bigIdeas: [
+                    {
+                        idea: "Creativity and Imagination",
+                        concepts: [
+                            {
+                                name: "Idea Generation and Exploration",
+                                description: "Developing original concepts and exploring various artistic forms.",
+                                statements: [
+                                    { subject: "Art", level: "Early Years", type: "Do", text: "I can explore different materials and textures to create marks and expressive pieces, naming the colors I use." },
+                                    { subject: "Drama", level: "Level 1", type: "Do", text: "I can use my voice, movement, and body to represent simple characters and express basic emotions in short role-play." },
+                                    { subject: "Music", level: "Level 2", type: "Know", text: "I know that musical compositions have structure (e.g., A/B sections, verse/chorus) and that elements like tempo and dynamics influence mood." },
+                                    { subject: "Art", level: "Level 3", type: "Know", text: "I know about the work of historical artists from different cultures and how their techniques relate to my own work." },
+                                    { subject: "Drama", level: "Level 4", type: "Know", text: "I know how complex technical elements like lighting states, sound cues, and staging contribute to the atmosphere and narrative of a performance." },
+                                    { subject: "Music", level: "Level 4", type: "Do", text: "I can improvise melodies over a given chord progression, demonstrating musical sensitivity and awareness of key signatures." }
+                                ]
+                            },
+                            {
+                                name: "Performance and Presentation",
+                                description: "The execution of artistic work for an audience.",
+                                statements: [
+                                    { subject: "Drama", level: "Level 3", type: "Do", text: "I can perform a short monologue or scene with controlled voice, confidence, and appropriate expression, justifying my character choices." },
+                                    { subject: "Music", level: "Level 4", type: "Do", text: "I can read and interpret complex musical notation (including ledger lines and syncopation) and perform a piece accurately in an ensemble." },
+                                    { subject: "Art", level: "Level 2", type: "Know", text: "I know how to safely display and present my artwork to others, considering composition and context." },
+                                    { subject: "Art", level: "Level 4", type: "Do", text: "I can professionally curate and present a portfolio of work, documenting my process and explaining my creative rationale and critical intent." }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        idea: "Aesthetic Appreciation",
+                        concepts: [
+                            {
+                                name: "Critical Analysis",
+                                description: "Evaluating and interpreting artistic works.",
+                                statements: [
+                                    { subject: "Art", level: "Level 2", type: "Do", text: "I can use simple descriptive language (e.g., texture, line, color) to talk about the artwork of others." },
+                                    { subject: "Drama", level: "Level 3", type: "Know", text: "I know that context (historical, social, political) influences the meaning of an artwork or performance." },
+                                    { subject: "Music", level: "Level 4", type: "Do", text: "I can write a critical review of a musical performance or composition, justifying my opinions with reference to musical theory and stylistic conventions." }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                area: "Health and Wellbeing",
+                color: "bg-green-600",
+                bigIdeas: [
+                    {
+                        idea: "Emotional Resilience",
+                        concepts: [
+                            {
+                                name: "Self-Awareness and Regulation",
+                                description: "Recognising and managing personal emotions and reactions.",
+                                statements: [
+                                    { subject: "Health and Wellbeing", level: "Early Years", type: "Know", text: "I can name common feelings like happy, sad, or angry and point to where I feel them in my body." },
+                                    { subject: "Health and Wellbeing", level: "Level 1", type: "Do", text: "I can identify a safe adult to talk to when I am upset and use a simple calming strategy like counting to five." },
+                                    { subject: "Health and Wellbeing", level: "Level 2", type: "Know", text: "I know that managing my breathing and thinking positive thoughts can help me feel calm and handle frustration." },
+                                    { subject: "Health and Wellbeing", level: "Level 3", type: "Do", text: "I can use and choose from various strategies, like mindfulness, sport, or writing, to manage stress effectively." },
+                                    { subject: "Health and Wellbeing", level: "Level 4", type: "Know", text: "I know the impact of both positive and negative self-talk on my mental health and recognise signs of emotional distress in myself and others." },
+                                    { subject: "Health and Wellbeing", level: "Level 4", type: "Do", text: "I can initiate and maintain healthy boundaries in relationships and seek professional help when needed." }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                area: "Sciences",
+                color: "bg-teal-600",
+                bigIdeas: [
+                    {
+                        idea: "Scientific Inquiry and Investigation",
+                        concepts: [
+                            {
+                                name: "Experimental Design",
+                                description: "Formulating questions, designing fair tests, and collecting data.",
+                                statements: [
+                                    { subject: "Physics", level: "Level 1", type: "Know", text: "I know that experiments help us find answers to questions and can identify things that push or pull." },
+                                    { subject: "Chemistry", level: "Level 2", type: "Do", text: "I can formulate a simple hypothesis (prediction) before conducting an investigation into material changes." },
+                                    { subject: "Biology", level: "Level 3", type: "Do", text: "I can identify, control, and measure variables accurately in a fair test relating to plant growth." },
+                                    { subject: "Chemistry", level: "Level 4", type: "Know", text: "I know the difference between qualitative and quantitative data and can select appropriate methods for collecting each." }
+                                ]
+                            },
+                            {
+                                name: "Earth and Space",
+                                description: "Understanding global and celestial phenomena.",
+                                statements: [
+                                    { subject: "Science", level: "Early Years", type: "Know", text: "I know the names of the seasons and simple weather changes (rain, sun, snow)." },
+                                    { subject: "Physics", level: "Level 2", type: "Do", text: "I can model the rotation of the Earth to explain day and night using a light source." },
+                                    { subject: "Biology", level: "Level 3", type: "Know", text: "I know the structure and function of the major body systems (e.g., digestive, circulatory)." },
+                                    { subject: "Physics", level: "Level 4", type: "Know", text: "I know that celestial bodies (planets, moons) are governed by gravitational forces and that the universe is vast and expanding." }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            }
+        ];
+        
+        // --- Global State Management ---
+        let db, auth;
+        let userId = null;
+        let isAuthReady = false;
+        
+        let state = {
+            canvasItems: [],
+            connections: [],
+            isSidebarOpen: true,
+            selectedLevel: 'All',
+            selectedArea: 'All',
+            isDragging: false,
+            draggedItemId: null,
+            dragOffset: { x: 0, y: 0 },
+            connectionMode: false,
+            sourceItemId: null,
+            contextMenu: { visible: false, x: 0, y: 0, itemId: null },
+        };
+
+        const itemRefs = {}; // Store DOM element references by ID
+
+        const updateState = (newState) => {
+            Object.assign(state, newState);
+            renderApp(); // Re-render application on state change
+        };
+
+        // --- Utility Functions ---
+
+        const getElementCenter = (el, canvasRect) => {
+            const rect = el.getBoundingClientRect();
+            return {
+                x: (rect.left + rect.right) / 2 - canvasRect.left,
+                y: (rect.top + rect.bottom) / 2 - canvasRect.top,
+            };
+        };
+
+        const getCollectionRef = (collectionName = 'planningItems') => {
+            if (db && userId) {
+                // Public collection for shared planning
+                const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+                return collection(db, `artifacts/${appId}/public/data/${collectionName}`);
+            }
+            return null;
+        };
+        
+        // Memoized map for quick concept lookup
+        const conceptDetailsMap = (() => {
+            const map = {};
+            CURRICULUM_DATA.forEach(areaData => {
+                areaData.bigIdeas.forEach(idea => {
+                    idea.concepts.forEach(concept => {
+                        map[concept.name] = {
+                            description: concept.description,
+                            areaColor: areaData.color,
+                            area: areaData.area,
+                        };
+                    });
+                });
+            });
+            return map;
+        })();
+        
+        // Calculates covered concepts for the dashboard
+        const calculateCoveredConcepts = () => {
+            const conceptCounts = {};
+            const conceptsData = {}; 
+
+            state.canvasItems.forEach(item => {
+                if (item.type === 'Statement' && item.concept) {
+                    conceptCounts[item.concept] = (conceptCounts[item.concept] || 0) + 1;
+                    
+                    if (!conceptsData[item.concept] && conceptDetailsMap[item.concept]) {
+                        conceptsData[item.concept] = conceptDetailsMap[item.concept];
+                    }
+                }
+            });
+
+            return Object.keys(conceptCounts).map(name => ({
+                name,
+                count: conceptCounts[name],
+                description: conceptsData[name]?.description || 'N/A',
+                areaColor: conceptsData[name]?.areaColor || 'bg-gray-400',
+                area: conceptsData[name]?.area || 'N/A',
+            })).sort((a, b) => a.area.localeCompare(b.area) || a.name.localeCompare(b.name));
+        };
+
+        // --- Firebase Initialization and Authentication ---
+        async function setupFirebase() {
+            const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+            const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+            if (firebaseConfig) {
+                try {
+                    const app = initializeApp(firebaseConfig);
+                    db = getFirestore(app);
+                    auth = getAuth(app);
+                    
+                    // Use session persistence for a smooth experience
+                    await setPersistence(auth, browserSessionPersistence);
+
+                    onAuthStateChanged(auth, async (user) => {
+                        if (user) {
+                            userId = user.uid;
+                        } else if (initialAuthToken) {
+                            await signInWithCustomToken(auth, initialAuthToken);
+                            userId = auth.currentUser.uid;
+                        } else {
+                            const anonymousUser = await signInAnonymously(auth);
+                            userId = anonymousUser.user.uid;
+                        }
+                        isAuthReady = true;
+                        setupRealtimeListeners();
+                        renderApp();
+                    });
+                } catch (error) {
+                    console.error("Firebase initialization failed:", error);
+                }
+            } else {
+                // Run in simulated mode if config is missing
+                isAuthReady = true;
+                userId = 'simulated-user';
+                renderApp();
+            }
+        }
+
+        // --- Firestore Realtime Listeners ---
+        function setupRealtimeListeners() {
+            if (!isAuthReady || !db) return;
+
+            // Items Listener
+            const itemsRef = getCollectionRef('planningItems');
+            if (itemsRef) {
+                onSnapshot(itemsRef, (snapshot) => {
+                    const fetchedItems = snapshot.docs.map(doc => ({
+                        id: doc.id,
+                        ...doc.data(),
+                        // Ensure x and y are numbers for drag logic
+                        x: doc.data().x || 0,
+                        y: doc.data().y || 0,
+                    }));
+                    updateState({ canvasItems: fetchedItems });
+                }, (error) => {
+                    console.error("Error fetching planning items:", error);
+                });
+            }
+
+            // Connections Listener
+            const connectionsRef = getCollectionRef('connections');
+            if (connectionsRef) {
+                onSnapshot(connectionsRef, (snapshot) => {
+                    const fetchedConnections = snapshot.docs.map(doc => ({
+                        id: doc.id,
+                        ...doc.data(),
+                    }));
+                    updateState({ connections: fetchedConnections });
+                }, (error) => {
+                    console.error("Error fetching connections:", error);
+                });
+            }
+        }
+
+        // --- Firestore CRUD Operations ---
+
+        async function updateItemPosition(id, newX, newY) {
+            if (!db || !userId) return;
+            const itemsRef = getCollectionRef('planningItems');
+            try {
+                await updateDoc(doc(itemsRef, id), { x: newX, y: newY });
+            } catch (error) {
+                console.error("Error updating item position:", error);
+            }
+        }
+        
+        async function deleteItem(id) {
+            if (!db || !userId) return;
+            const itemsRef = getCollectionRef('planningItems');
+            updateState({ contextMenu: { visible: false, x: 0, y: 0, itemId: null } }); 
+            try {
+                await deleteDoc(doc(itemsRef, id));
+            } catch (error) {
+                console.error(`Error deleting item ${id}.`, error);
+            }
+        }
+
+        async function deleteConnection(connectionId) {
+            if (!db || !userId) return;
+            const connectionsRef = getCollectionRef('connections'); 
+            try {
+                await deleteDoc(doc(connectionsRef, connectionId));
+            } catch (error) {
+                console.error(`Error deleting connection ${connectionId}.`, error);
+            }
+        }
+
+        async function addNote() {
+            if (!db || !userId) return;
+            const itemsRef = getCollectionRef('planningItems');
+            try {
+                await addDoc(itemsRef, {
+                    type: 'Note',
+                    text: 'New Teacher Note',
+                    x: 100, // Default starting position
+                    y: 100,
+                    color: 'bg-yellow-400',
+                    createdAt: serverTimestamp(),
+                });
+            } catch (error) {
+                console.error("Error adding note:", error);
+            }
+        }
+
+        async function createConnection(targetId) {
+            const sourceId = state.sourceItemId;
+
+            if (!sourceId || targetId === sourceId) {
+                updateState({ connectionMode: false, sourceItemId: null });
+                return;
+            }
+
+            const connectionsRef = getCollectionRef('connections');
+            const existingConnection = state.connections.find(c => 
+                (c.sourceId === sourceId && c.targetId === targetId) ||
+                (c.sourceId === targetId && c.targetId === sourceId)
+            );
+
+            if (existingConnection) {
+                 await deleteConnection(existingConnection.id);
+            } else {
+                try {
+                    await addDoc(connectionsRef, {
+                        sourceId: sourceId,
+                        targetId: targetId,
+                        createdAt: serverTimestamp(),
+                    });
+                } catch (error) {
+                    console.error("Error creating connection:", error);
+                }
+            }
+            
+            updateState({ connectionMode: false, sourceItemId: null });
+        }
+
+
+        // --- Drag and Drop Logic (Canvas Items) ---
+
+        function handleDragStart(e, id, currentX, currentY) {
+            if (e.button !== 0 && !e.touches) return; // Only allow left click or touch
+            if (state.connectionMode) { e.preventDefault(); return; }
+            
+            dismissContextMenu();
+            
+            const clientX = e.clientX || e.touches?.[0]?.clientX;
+            const clientY = e.clientY || e.touches?.[0]?.clientY;
+            if (typeof clientX === 'undefined' || typeof clientY === 'undefined') return;
+
+            const itemEl = itemRefs[id];
+            if (!itemEl) return;
+            const itemRect = itemEl.getBoundingClientRect();
+            
+            const offset = {
+                x: clientX - itemRect.left,
+                y: clientY - itemRect.top,
+            };
+            
+            // Bring the dragged element to the front immediately
+            itemEl.style.zIndex = 1000; 
+
+            updateState({
+                isDragging: true,
+                draggedItemId: id,
+                dragOffset: offset,
+            });
+
+            // Add global listeners for drag/touch movement
+            window.addEventListener('mousemove', handleDrag);
+            window.addEventListener('mouseup', handleDragEnd);
+            window.addEventListener('touchmove', handleDrag);
+            window.addEventListener('touchend', handleDragEnd);
+        }
+
+        function handleDrag(e) {
+            if (!state.isDragging || !state.draggedItemId) return;
+            
+            const clientX = e.clientX || e.touches?.[0]?.clientX;
+            const clientY = e.clientY || e.touches?.[0]?.clientY;
+            if (typeof clientX === 'undefined' || typeof clientY === 'undefined') return;
+            
+            // Prevent scrolling on mobile during drag
+            if (e.touches && e.touches.length === 1) {
+                e.preventDefault(); 
+            }
+
+            const canvasEl = document.getElementById('planning-canvas');
+            if (!canvasEl) return;
+            const canvasRect = canvasEl.getBoundingClientRect();
+
+            let newX = clientX - canvasRect.left;
+            let newY = clientY - canvasRect.top;
+
+            newX = newX - state.dragOffset.x;
+            newY = newY - state.dragOffset.y;
+            
+            // Clamp to canvas boundaries
+            newX = Math.max(0, newX);
+            newY = Math.max(0, newY);
+            
+            // Optimistically update local state for smooth dragging
+            const itemEl = itemRefs[state.draggedItemId];
+            if (itemEl) {
+                itemEl.style.left = `${newX}px`;
+                itemEl.style.top = `${newY}px`;
+            }
+
+            // Update state.canvasItems to store the new coordinates for the final save
+            const newCanvasItems = state.canvasItems.map(item => 
+                item.id === state.draggedItemId ? { ...item, x: newX, y: newY } : item
+            );
+            state.canvasItems = newCanvasItems; // Direct update for performance during drag
+        }
+
+
+        function handleDragEnd() {
+            if (state.draggedItemId) {
+                const finalItem = state.canvasItems.find(item => item.id === state.draggedItemId);
+                if (finalItem) {
+                    updateItemPosition(finalItem.id, finalItem.x, finalItem.y);
+                    
+                    const draggedElement = itemRefs[finalItem.id];
+                    if (draggedElement) {
+                         draggedElement.style.zIndex = 10;
+                    }
+                }
+            }
+
+            updateState({
+                isDragging: false,
+                draggedItemId: null,
+                dragOffset: { x: 0, y: 0 }
+            });
+            
+            window.removeEventListener('mousemove', handleDrag);
+            window.removeEventListener('mouseup', handleDragEnd);
+            window.removeEventListener('touchmove', handleDrag);
+            window.removeEventListener('touchend', handleDragEnd);
+        }
+
+
+        // --- Drag and Drop Logic (Drawer to Canvas) ---
+
+        function handleStatementDragStart(e, statement, concept, areaColor) {
+            const dragData = {
+                type: 'Statement',
+                text: statement.text,
+                color: areaColor,
+                level: statement.level,
+                knowDo: statement.type,
+                subject: statement.subject,
+                concept: concept.name,
+                conceptDescription: concept.description,
+            };
+            e.dataTransfer.setData("application/json", JSON.stringify(dragData));
+            e.dataTransfer.effectAllowed = "copy";
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            dismissContextMenu();
+
+            if (!db || !userId) {
+                console.error("Database not initialized or user not logged in.");
+                return;
+            }
+
+            const canvasRect = e.currentTarget.getBoundingClientRect();
+            const dropX = e.clientX - canvasRect.left;
+            const dropY = e.clientY - canvasRect.top;
+
+            try {
+                const data = e.dataTransfer.getData("application/json");
+                const dragData = JSON.parse(data);
+
+                if (dragData.type === 'Statement') {
+                    const itemsRef = getCollectionRef('planningItems');
+                    addDoc(itemsRef, {
+                        type: 'Statement',
+                        text: dragData.text,
+                        x: dropX - 120, // Offset to center the dropped item
+                        y: dropY - 40, 
+                        color: dragData.color,
+                        level: dragData.level,
+                        knowDo: dragData.knowDo,
+                        subject: dragData.subject,
+                        concept: dragData.concept,
+                        conceptDescription: dragData.conceptDescription,
+                        createdAt: serverTimestamp(),
+                    });
+                }
+            } catch (error) {
+                console.error("Error processing drop:", error);
+            }
+        }
+
+        function handleDragOver(e) {
+            e.preventDefault(); 
+            e.dataTransfer.dropEffect = "copy";
+        }
+        
+        // --- Connection/Linking Logic ---
+
+        function handleConnectClick(e, id) {
+            e.stopPropagation();
+
+            if (!state.connectionMode) {
+                // Start connection mode
+                updateState({ connectionMode: true, sourceItemId: id });
+                dismissContextMenu();
+            } else if (state.sourceItemId && state.sourceItemId !== id) {
+                // End connection mode and create link
+                createConnection(id);
+            } else {
+                // Clicking the same item or clicking without a source, cancel
+                updateState({ connectionMode: false, sourceItemId: null });
+            }
+        }
+
+        // --- Context Menu Logic ---
+        
+        function handleContextMenu(e, itemId) {
+            e.preventDefault(); 
+            if (state.connectionMode) return;
+            
+            const canvasRect = document.getElementById('planning-canvas').getBoundingClientRect();
+            
+            updateState({
+                contextMenu: {
+                    visible: true,
+                    x: e.clientX - canvasRect.left,
+                    y: e.clientY - canvasRect.top,
+                    itemId,
+                }
+            });
+        }
+
+        function dismissContextMenu() {
+            if(state.contextMenu.visible) {
+                 updateState({ contextMenu: { visible: false, x: 0, y: 0, itemId: null } });
+            }
+            // Also dismiss connection mode if active
+            if(state.connectionMode) {
+                updateState({ connectionMode: false, sourceItemId: null });
+            }
+        }
+
+
+        // --- Rendering Functions ---
+
+        function renderConnectionLines() {
+            const canvasEl = document.getElementById('planning-canvas');
+            const svgContainer = document.getElementById('connection-svg');
+            if (!svgContainer || !canvasEl) return;
+
+            const canvasRect = canvasEl.getBoundingClientRect();
+            let svgContent = '';
+
+            state.connections.forEach(conn => {
+                const sourceEl = itemRefs[conn.sourceId];
+                const targetEl = itemRefs[conn.targetId];
+
+                if (!sourceEl || !targetEl) return;
+
+                const start = getElementCenter(sourceEl, canvasRect);
+                const end = getElementCenter(targetEl, canvasRect);
+                
+                const isConnecting = state.sourceItemId === conn.sourceId || state.sourceItemId === conn.targetId;
+                const strokeColor = isConnecting ? "#f97316" : "#4b5563"; 
+                const strokeDash = isConnecting ? "5, 5" : "0";
+                
+                svgContent += `<line
+                    x1="${start.x}" y1="${start.y}" x2="${end.x}" y2="${end.y}"
+                    stroke="${strokeColor}"
+                    stroke-width="3"
+                    stroke-dasharray="${strokeDash}"
+                    class="transition-all duration-100 ease-out"
+                />`;
+            });
+
+            svgContainer.innerHTML = svgContent;
+        }
+        
+        function renderCanvasItems() {
+            const canvasItemsContainer = document.getElementById('canvas-items-container');
+            const menuContainer = document.getElementById('context-menu-container');
+            if (!canvasItemsContainer) return;
+            
+            // Clear existing content and re-render
+            canvasItemsContainer.innerHTML = state.canvasItems.map(item => {
+                const isStatement = item.type === 'Statement';
+                const isNote = item.type === 'Note';
+                const isMoving = state.draggedItemId === item.id;
+                const isSource = state.sourceItemId === item.id;
+                const isTargetCandidate = state.connectionMode && !isSource;
+
+                const baseColor = isStatement ? item.color : 'bg-yellow-400';
+                const itemClass = isStatement ? 
+                    `${baseColor} text-white p-3 rounded-lg shadow-lg cursor-move item-transition` : 
+                    `${baseColor} text-gray-800 p-3 rounded-lg shadow-lg border border-gray-300 cursor-move item-transition`;
+
+                let containerClasses = itemClass;
+                if (isSource) {
+                    containerClasses += ' ring-4 ring-offset-2 ring-orange-500 border-2 border-white';
+                } else if (isTargetCandidate) {
+                    containerClasses += ' hover:ring-4 ring-offset-2 ring-green-400 transform hover:scale-[1.05]';
+                }
+
+                // Inner content for the card
+                const innerContent = isNote ? `
+                    <p class="text-xs font-bold uppercase mb-1">Teacher Note</p>
+                    <p class="text-sm mt-2 text-gray-800 italic">${item.text}</p>
+                ` : `
+                    <p class="text-xs font-bold uppercase mb-1">
+                        <span class="bg-black/20 px-2 py-0.5 rounded-full text-xs font-medium mr-1">
+                            ${item.knowDo} | ${item.level}
+                        </span>
+                    </p>
+                    <p class="text-sm font-medium text-white">${item.text}</p>
+                    <div class="text-xs mt-1 pt-1 border-t border-white/30 font-medium opacity-80">
+                        Concept: ${item.concept}
+                    </div>
+                `;
+
+                const connectButton = isSource ? `
+                    <button 
+                        class="text-white/80 hover:text-white transition-colors text-xs font-bold bg-orange-700/80 px-2 py-0.5 rounded-full active:scale-95"
+                        onclick="handleConnectClick(event, '${item.id}')"
+                    >
+                        Cancel
+                    </button>
+                ` : `
+                    <button 
+                        class="p-1 rounded-full text-white/80 hover:text-white transition-colors shadow-md active:scale-95 ${isStatement ? 'bg-black/20 hover:bg-black/30' : 'bg-gray-700 hover:bg-gray-800'}"
+                        onclick="handleConnectClick(event, '${item.id}')"
+                        title="Connect to another item"
+                    >
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l7 7-7 7M5 5l7 7-7 7"></path></svg>
+                    </button>
+                `;
+
+
+                return `
+                    <div
+                        id="item-${item.id}"
+                        class="${containerClasses}"
+                        style="position: absolute; left: ${item.x}px; top: ${item.y}px; width: 240px; min-height: ${isNote ? '100px' : '80px'}; z-index: ${isMoving ? 1000 : (isSource ? 100 : 10)};"
+                        onmousedown="handleDragStart(event, '${item.id}', ${item.x}, ${item.y})"
+                        ontouchstart="handleDragStart(event, '${item.id}', ${item.x}, ${item.y})"
+                        oncontextmenu="handleContextMenu(event, '${item.id}')"
+                        ${isTargetCandidate ? `onclick="handleConnectClick(event, '${item.id}')"` : ''}
+                    >
+                        <div class="flex justify-between items-start">
+                            ${isNote ? `<p class="text-xs font-bold uppercase mb-1">Teacher Note</p>` : `<p class="text-xs font-bold uppercase mb-1">
+                                <span class="bg-white/20 px-2 py-0.5 rounded-full text-xs font-medium mr-1">
+                                    ${item.knowDo} | ${item.level}
+                                </span>
+                            </p>`}
+                            ${connectButton}
+                        </div>
+                        ${isNote ? `
+                            <p class="text-sm mt-2 text-gray-800 italic">${item.text}</p>
+                        ` : `
+                            <p class="text-sm font-medium text-white">${item.text}</p>
+                            <div class="text-xs mt-1 pt-1 border-t border-white/30 font-medium opacity-80">
+                                Concept: ${item.concept}
+                            </div>
+                        `}
+                    </div>
+                `;
+            }).join('');
+            
+            // Re-map references after DOM update
+            state.canvasItems.forEach(item => {
+                itemRefs[item.id] = document.getElementById(`item-${item.id}`);
+            });
+            
+            renderConnectionLines();
+            renderContextMenu(menuContainer);
+        }
+        
+        function renderContextMenu(container) {
+            const menu = state.contextMenu;
+            if (!menu.visible) {
+                container.innerHTML = '';
+                return;
+            }
+
+            const targetItem = state.canvasItems.find(i => i.id === menu.itemId);
+            if (!targetItem) {
+                container.innerHTML = '';
+                return;
+            }
+            
+            const associatedConnections = state.connections.filter(c => c.sourceId === menu.itemId || c.targetId === menu.itemId);
+
+            const connectionsList = associatedConnections.length > 0 ? `
+                <div class="border-t pt-1 mt-1">
+                    <p class="px-4 pt-2 pb-1 text-xs font-semibold text-gray-500 uppercase">Delete Links (${associatedConnections.length})</p>
+                    ${associatedConnections.map(conn => {
+                        const otherId = conn.sourceId === menu.itemId ? conn.targetId : conn.sourceId;
+                        const otherItem = state.canvasItems.find(i => i.id === otherId);
+                        const otherName = otherItem ? (otherItem.concept || otherItem.text.substring(0, 20) + '...') : 'Unknown Item';
+                        
+                        return `
+                            <button
+                                onclick="deleteConnection('${conn.id}'); dismissContextMenu();"
+                                class="flex items-center w-full px-4 py-1 text-xs text-gray-700 hover:bg-red-50 transition-colors justify-between"
+                            >
+                                <span class="flex-grow text-left truncate">
+                                    <span class="font-mono text-[10px] mr-1">Link:</span>
+                                    ${otherName}
+                                </span>
+                                <svg class="w-3 h-3 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                            </button>
+                        `;
+                    }).join('')}
+                </div>
+            ` : '';
+
+
+            container.innerHTML = `
+                <div
+                    style="top: ${menu.y}px; left: ${menu.x}px;"
+                    class="absolute z-[2000] w-64 bg-white border border-gray-300 rounded-lg shadow-2xl overflow-hidden"
+                    onclick="event.stopPropagation()"
+                >
+                    <button
+                        onclick="deleteItem('${menu.itemId}')"
+                        class="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                    >
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                        Delete Item
+                    </button>
+                    ${connectionsList}
+                </div>
+            `;
+        }
+
+        function renderConceptDashboard() {
+            const concepts = calculateCoveredConcepts();
+            const dashboardEl = document.getElementById('concept-dashboard');
+            if (!dashboardEl) return;
+
+            if (concepts.length === 0) {
+                dashboardEl.innerHTML = `
+                    <div class="p-4 bg-white border-b text-gray-500 italic">
+                        Drag some statements onto the canvas to see which concepts you are covering.
+                    </div>
+                `;
+                return;
+            }
+
+            const conceptCards = concepts.map(concept => {
+                const bgColor = concept.areaColor.replace('600', '100');
+                const textColor = concept.areaColor.replace('bg', 'text');
+                return `
+                    <div 
+                        class="flex flex-col items-center justify-center p-3 rounded-xl shadow-md flex-shrink-0 w-48 transition-all duration-300 transform hover:scale-[1.02] ${bgColor}"
+                    >
+                        <span class="text-3xl font-extrabold ${textColor}">${concept.count}</span>
+                        <p class="text-xs font-semibold uppercase mt-1 text-gray-700">${concept.area}</p>
+                        <p class="text-sm font-bold text-center text-gray-800 leading-tight mt-0.5">${concept.name}</p>
+                        <p class="text-xs italic text-center text-gray-500 mt-1 truncate w-full">${concept.description}</p>
+                    </div>
+                `;
+            }).join('');
+
+            dashboardEl.innerHTML = `
+                <div class="p-4 border-b bg-gray-50 overflow-x-auto">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-3">Covered Concepts (${concepts.length})</h3>
+                    <div class="flex space-x-3 pb-2 custom-scrollbar">
+                        ${conceptCards}
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderDrawerContent() {
+            const drawerContentEl = document.getElementById('drawer-content');
+            if (!drawerContentEl) return;
+
+            const filteredCurriculum = CURRICULUM_DATA
+                .filter(area => state.selectedArea === 'All' || area.area === state.selectedArea)
+                .map(area => ({
+                    ...area,
+                    bigIdeas: area.bigIdeas.map(idea => ({
+                        ...idea,
+                        concepts: idea.concepts.map(concept => ({
+                            ...concept,
+                            statements: concept.statements.filter(statement => 
+                                state.selectedLevel === 'All' || statement.level === state.selectedLevel
+                            )
+                        })).filter(concept => concept.statements.length > 0)
+                    })).filter(idea => idea.concepts.length > 0)
+                })).filter(area => area.bigIdeas.length > 0);
+
+            if (filteredCurriculum.length === 0) {
+                 drawerContentEl.innerHTML = `<p class="text-center text-gray-500 italic mt-10">No statements match the current filters.</p>`;
+                 return;
+            }
+            
+            let html = '';
+            filteredCurriculum.forEach(area => {
+                const areaColorClass = area.color.replace('bg-', 'text-');
+                const areaId = area.area.replace(/\s/g, '');
+                
+                html += `
+                    <div class="mb-4 border-l-2 pl-2" style="border-color: ${area.color.replace('600', '400')}">
+                        <button 
+                            onclick="toggleArea('${areaId}')" 
+                            class="flex justify-between items-center w-full p-2 rounded-md ${area.color.replace('600', '100')} ${areaColorClass} font-semibold text-left transition-colors duration-150 hover:bg-gray-200"
+                        >
+                            ${area.area}
+                            <svg id="area-icon-${areaId}" class="w-4 h-4 transform transition-transform duration-300 ${area.isOpen ? 'rotate-90' : 'rotate-0'}" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"></path></svg>
+                        </button>
+                        <div id="area-content-${areaId}" class="${area.isOpen ? 'block' : 'hidden'}">
+                `;
+
+                area.bigIdeas.forEach(idea => {
+                    const ideaId = `${areaId}-${idea.idea.replace(/\s/g, '')}`;
+                    
+                    html += `
+                        <div class="ml-3 my-2">
+                            <button 
+                                onclick="toggleIdea('${ideaId}')" 
+                                class="flex items-center w-full text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors duration-150 py-1.5"
+                            >
+                                <svg id="idea-icon-${ideaId}" class="w-3 h-3 mr-2 transform transition-transform duration-200 ${idea.isOpen ? 'rotate-90' : 'rotate-0'}" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg>
+                                ${idea.idea}
+                            </button>
+                            <div id="idea-content-${ideaId}" class="${idea.isOpen ? 'block' : 'hidden'}">
+                    `;
+                    
+                    idea.concepts.forEach(concept => {
+                        const conceptId = `${ideaId}-${concept.name.replace(/\s/g, '')}`;
+                        
+                        html += `
+                            <div class="ml-6 border-l pl-3 my-2">
+                                <button 
+                                    onclick="toggleConcept('${conceptId}')" 
+                                    class="flex items-center w-full text-sm italic text-gray-500 hover:text-gray-700 py-1"
+                                >
+                                    <svg id="concept-icon-${conceptId}" class="w-2.5 h-2.5 mr-2 transform transition-transform duration-200 ${concept.isOpen ? 'rotate-90' : 'rotate-0'}" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z"></path></svg>
+                                    ${concept.name}
+                                </button>
+                                <div id="concept-content-${conceptId}" class="mt-2 space-y-2 ${concept.isOpen ? 'block' : 'hidden'}">
+                        `;
+
+                        concept.statements.forEach((statement, index) => {
+                            const dragData = { text: statement.text, level: statement.level, type: statement.type, subject: statement.subject };
+                            const statementData = JSON.stringify(dragData).replace(/"/g, '&quot;');
+                            
+                            html += `
+                                <div
+                                    draggable="true"
+                                    ondragstart="handleStatementDragStart(event, ${statementData}, { name: '${concept.name}', description: '${concept.description}' }, '${area.color}')"
+                                    class="p-2 my-1 rounded-md text-sm cursor-grab shadow-sm transition-all duration-200 
+                                    ${statement.type === 'Know' ? 'bg-gray-100 hover:bg-gray-200 border-l-4 border-blue-400' : 'bg-gray-100 hover:bg-gray-200 border-l-4 border-teal-400'}"
+                                >
+                                    <span class="text-xs font-bold mr-2 px-1 py-0.5 rounded-sm ${statement.type === 'Know' ? 'text-blue-600 bg-blue-100' : 'text-teal-600 bg-teal-100'}">
+                                        ${statement.type}
+                                    </span>
+                                    <span class="text-xs font-medium text-gray-700 mr-2">${statement.level}</span>
+                                    <span class="text-xs italic text-gray-500">${statement.subject}</span>
+                                    <p class="mt-1 text-sm text-gray-800">${statement.text}</p>
+                                </div>
+                            `;
+                        });
+                        
+                        html += `
+                                </div>
+                            </div>
+                        `; // Close concept-content, close concept div
+                    });
+
+                    html += `
+                            </div>
+                        </div>
+                    `; // Close idea-content, close idea div
+                });
+                
+                html += `
+                        </div>
+                    </div>
+                `; // Close area-content, close area div
+            });
+            
+            drawerContentEl.innerHTML = html;
+        }
+
+        // Simple toggle functions for Drawer interactivity
+        function toggleArea(areaId) { toggleSection('area', areaId); }
+        function toggleIdea(ideaId) { toggleSection('idea', ideaId); }
+        function toggleConcept(conceptId) { toggleSection('concept', conceptId); }
+        
+        // Generic function to handle nested toggles in the Drawer
+        function toggleSection(type, id) {
+            const contentEl = document.getElementById(`${type}-content-${id}`);
+            const iconEl = document.getElementById(`${type}-icon-${id}`);
+            
+            if (contentEl.classList.contains('hidden')) {
+                contentEl.classList.remove('hidden');
+                iconEl.classList.add('rotate-90');
+                iconEl.classList.remove('rotate-0');
+            } else {
+                contentEl.classList.add('hidden');
+                iconEl.classList.remove('rotate-90');
+                iconEl.classList.add('rotate-0');
+            }
+        }
+
+        function renderApp() {
+            const app = document.getElementById('app');
+            const drawerWidth = state.isSidebarOpen ? 'w-80' : 'w-0';
+            const authStatusText = isAuthReady ? (userId ? userId : 'Anonymous') : 'Connecting...';
+            const connectionModeIndicator = state.connectionMode && state.sourceItemId ? `
+                <div class="px-4 py-1.5 bg-orange-100 text-orange-700 rounded-full text-sm font-medium shadow-md">
+                    Connecting: Select Target Item
+                </div>
+            ` : '';
+
+
+            app.innerHTML = `
+                <!-- Sidebar/Drawer -->
+                <div class="transition-all duration-300 ${drawerWidth} bg-white border-r shadow-lg flex-shrink-0 h-full overflow-hidden">
+                    <div class="p-4 ${state.isSidebarOpen ? 'block' : 'hidden'}">
+                        <h2 class="text-xl font-bold text-gray-800 mb-4">Curriculum Statements</h2>
+                        
+                        <!-- Filters -->
+                        <div class="space-y-3 mb-4">
+                            <select
+                                id="area-filter"
+                                class="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm"
+                                onchange="updateState({ selectedArea: this.value })"
+                            >
+                                <option value="All">Filter by Area (All)</option>
+                                ${CURRICULUM_DATA.map(area => `<option value="${area.area}" ${state.selectedArea === area.area ? 'selected' : ''}>${area.area}</option>`).join('')}
+                            </select>
+
+                            <select
+                                id="level-filter"
+                                class="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm"
+                                onchange="updateState({ selectedLevel: this.value })"
+                            >
+                                <option value="All">Filter by Level (All)</option>
+                                ${LEVELS.map(level => `<option value="${level}" ${state.selectedLevel === level ? 'selected' : ''}>${level}</option>`).join('')}
+                            </select>
+                        </div>
+                        
+                        <hr class="mb-4" />
+
+                        <!-- Hierarchical List -->
+                        <div id="drawer-content" class="h-[calc(100vh-250px)] overflow-y-auto pr-2 custom-scrollbar">
+                            <!-- Content generated by renderDrawerContent() -->
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Main Planning Area -->
+                <div class="flex-grow flex flex-col relative overflow-hidden">
+                    <!-- Top Bar/Controls -->
+                    <div class="flex justify-between items-center p-4 border-b bg-white shadow-sm flex-shrink-0">
+                        <div class="flex items-center space-x-4">
+                            <button 
+                                onclick="updateState({ isSidebarOpen: !state.isSidebarOpen })" 
+                                class="p-2 rounded-full bg-gray-200 hover:bg-gray-300 transition-colors duration-150"
+                                title="${state.isSidebarOpen ? "Hide Drawer" : "Show Drawer"}"
+                            >
+                                <svg class="w-6 h-6 transform transition-transform duration-300 ${state.isSidebarOpen ? 'rotate-180' : 'rotate-0'}" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"></path></svg>
+                            </button>
+                            <h1 class="text-2xl font-extrabold text-gray-900">Curriculum Planning Board</h1>
+                        </div>
+                        
+                        <div class="flex space-x-3 items-center">
+                            ${connectionModeIndicator}
+                            <button 
+                                onclick="addNote()" 
+                                class="flex items-center px-4 py-2 bg-yellow-500 text-white font-medium rounded-lg shadow-md hover:bg-yellow-600 transition-colors duration-150 active:scale-95"
+                            >
+                                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                                Add Note
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Concept Dashboard -->
+                    <div id="concept-dashboard">
+                        <!-- Content generated by renderConceptDashboard() -->
+                    </div>
+
+                    <!-- Planning Canvas -->
+                    <div 
+                        id="planning-canvas"
+                        class="flex-grow relative overflow-auto bg-white canvas-grid ${state.connectionMode ? 'cursor-crosshair' : ''}"
+                        ondrop="handleDrop(event)"
+                        ondragover="handleDragOver(event)"
+                        onclick="dismissContextMenu()" 
+                        ontouchstart="if (event.touches.length > 1) event.preventDefault();"
+                    >
+                        
+                        <!-- SVG Connection Lines -->
+                        <svg id="connection-svg" class="absolute inset-0 w-full h-full pointer-events-none z-50"></svg>
+                        
+                        <!-- Canvas Items (Draggable/Movable) -->
+                        <div id="canvas-items-container">
+                            <!-- Content generated by renderCanvasItems() -->
+                        </div>
+
+                        <!-- Context Menu -->
+                        <div id="context-menu-container">
+                            <!-- Content generated by renderContextMenu() -->
+                        </div>
+                        
+                        ${!isAuthReady ? `
+                            <div class="absolute inset-0 flex items-center justify-center bg-white/80 z-50">
+                                <p class="text-xl font-medium text-gray-600">Loading Planner Data...</p>
+                            </div>
+                        ` : ''}
+
+                    </div>
+                    <!-- Footer for status and user info -->
+                    <div class="p-2 border-t bg-gray-100 text-xs text-gray-500 flex justify-between flex-shrink-0">
+                        <p>Planning items saved in real-time. Click the **Connect** button on an item to start linking dependencies.</p>
+                        <p>User ID: <span class="font-mono text-gray-800">${authStatusText}</span></p>
+                    </div>
+                </div>
+            `;
+            
+            // Re-render sub-components that depend on internal state or filter changes
+            renderDrawerContent();
+            renderConceptDashboard();
+            renderCanvasItems(); 
+            // The logic inside renderCanvasItems() also triggers renderConnectionLines() and renderContextMenu()
+        }
+        
+        // --- Global Exports (for inline HTML event handlers) ---
+        window.updateState = updateState;
+        window.handleStatementDragStart = handleStatementDragStart;
+        window.handleDrop = handleDrop;
+        window.handleDragOver = handleDragOver;
+        window.handleDragStart = handleDragStart;
+        window.handleContextMenu = handleContextMenu;
+        window.dismissContextMenu = dismissContextMenu;
+        window.handleConnectClick = handleConnectClick;
+        window.deleteItem = deleteItem;
+        window.deleteConnection = deleteConnection;
+        window.addNote = addNote;
+        window.toggleArea = toggleArea;
+        window.toggleIdea = toggleIdea;
+        window.toggleConcept = toggleConcept;
+
+        // --- Initial Load ---
+        window.onload = setupFirebase;
+
+    </script>
+</body>
+</html>
