@@ -41,6 +41,12 @@
             box-sizing: border-box; /* Ensures padding is calculated inward */
         }
         
+        /* Style for editable content */
+        [contenteditable]:focus {
+            outline: 2px solid #3b82f6; /* Blue ring on focus */
+            outline-offset: 1px;
+        }
+        
     </style>
 </head>
 <body class="overflow-hidden">
@@ -384,6 +390,27 @@
             }
         }
         
+        async function updateItemText(id, newText) {
+            if (!db || !userId) return;
+            // Trim whitespace and check if text is significantly different
+            const trimmedText = newText.trim();
+            const currentItem = state.canvasItems.find(item => item.id === id);
+            if (!currentItem || currentItem.text === trimmedText) return;
+            
+            const itemsRef = getCollectionRef('planningItems');
+            try {
+                await updateDoc(doc(itemsRef, id), { text: trimmedText });
+            } catch (error) {
+                console.error("Error updating item text:", error);
+            }
+        }
+        
+        async function handleTextEdit(e, id) {
+            // This is called on blur/focusout from an editable element
+            const newText = e.target.innerText;
+            updateItemText(id, newText);
+        }
+
         async function deleteItem(id) {
             if (!db || !userId) return;
             const itemsRef = getCollectionRef('planningItems');
@@ -411,10 +438,10 @@
             try {
                 await addDoc(itemsRef, {
                     type: 'Note',
-                    text: 'New Teacher Note',
+                    text: 'Click here to edit your note...',
                     x: 100, // Default starting position
                     y: 100,
-                    color: 'bg-yellow-400',
+                    color: 'bg-yellow-500', // Changed to 500 for better contrast on hexagon
                     createdAt: serverTimestamp(),
                 });
             } catch (error) {
@@ -467,6 +494,12 @@
                 return; 
             }
             
+            // If dragging a contenteditable element, prevent the whole item drag
+            if (e.target.closest('[contenteditable="true"]')) {
+                // Allow text selection/editing
+                return;
+            }
+
             if (e.button !== 0 && !e.touches) return; // Only allow left click or touch
             
             dismissContextMenu();
@@ -504,7 +537,7 @@
             if (!state.isDragging || !state.draggedItemId) return;
             
             const clientX = e.clientX || e.touches?.[0]?.clientX;
-            const clientY = e.clientY || e.touches?.[0]?.clientY;
+            const clientY = e.touches?.[0]?.clientY || e.clientY;
             if (typeof clientX === 'undefined' || typeof clientY === 'undefined') return;
             
             // Prevent scrolling on mobile during drag
@@ -725,15 +758,11 @@
                 // --- Hexagon specific sizing and class ---
                 const ITEM_WIDTH = 280;
                 const ITEM_HEIGHT = 220; 
-                const NOTE_HEIGHT = 120;
                 
-                const baseColor = isStatement ? item.color : 'bg-yellow-400';
+                // ALL items are now hexagons
+                const baseColor = isStatement ? item.color : item.color; // Note color is bg-yellow-500
+                const itemClass = `${baseColor} text-white shadow-xl cursor-move item-transition hexagon-shape`;
                 
-                // Statements are hexagons, Notes are rounded rectangles for distinction
-                const itemClass = isStatement ? 
-                    `${baseColor} text-white shadow-xl cursor-move item-transition hexagon-shape` : 
-                    `${baseColor} text-gray-800 p-3 rounded-lg shadow-lg border border-gray-300 cursor-move item-transition`;
-
                 let containerClasses = itemClass;
                 if (isSource) {
                     containerClasses += ' ring-4 ring-offset-2 ring-orange-500 border-2 border-white';
@@ -741,15 +770,28 @@
                     containerClasses += ' hover:ring-4 ring-offset-2 ring-green-400 transform hover:scale-[1.05]';
                 }
 
-                // Inner content for the card (Note requires different styling/layout)
+                // Inner content for the card
                 let innerContent;
                 if (isNote) {
+                     // Note content: Editable text area
                      innerContent = `
-                        <p class="text-xs font-bold uppercase mb-1">Teacher Note</p>
-                        <p class="text-sm mt-2 text-gray-800 italic">${item.text}</p>
+                        <div class="flex flex-col h-full justify-center items-center text-center">
+                            <div class="mb-3">
+                                <span class="bg-black/20 px-3 py-1 rounded-full text-xs font-bold uppercase text-white shadow-md">
+                                    Teacher Note
+                                </span>
+                            </div>
+                            <div
+                                contenteditable="true"
+                                onblur="handleTextEdit(event, '${item.id}')"
+                                class="text-sm font-medium text-white leading-snug p-2 rounded-md focus:bg-white/90 focus:text-gray-900 transition-colors"
+                            >
+                                ${item.text}
+                            </div>
+                        </div>
                     `;
                 } else {
-                     // Statement content structure (SIMPLIFIED: Know/Do & Subject only)
+                     // Statement content structure
                      innerContent = `
                         <div class="flex flex-col h-full justify-center items-center text-center">
                             <div class="mb-3">
@@ -779,29 +821,17 @@
                     </button>
                 `;
 
-                // --- Component Structure for Hexagon vs. Note ---
-                let itemStructure = '';
-                if (isStatement) {
-                    // Statement (Hexagon) structure: Content is now vertically centered
-                    itemStructure = `
-                        <div class="flex flex-col h-full justify-center relative">
-                            <div class="w-full text-center">
-                                ${innerContent}
-                            </div>
-                            <div class="absolute bottom-2 right-2">
-                                ${connectButton}
-                            </div>
-                        </div>
-                    `;
-                } else {
-                    // Note (Rounded Rect) structure: Standard layout
-                    itemStructure = `
-                        <div class="flex justify-between items-start">
+                // --- Component Structure (Same for both Note and Statement) ---
+                const itemStructure = `
+                    <div class="flex flex-col h-full justify-center relative">
+                        <div class="w-full text-center">
                             ${innerContent}
+                        </div>
+                        <div class="absolute bottom-2 right-2">
                             ${connectButton}
                         </div>
-                    `;
-                }
+                    </div>
+                `;
 
 
                 return `
@@ -809,8 +839,8 @@
                         id="item-${item.id}"
                         class="${containerClasses}"
                         style="position: absolute; left: ${item.x}px; top: ${item.y}px; 
-                                width: ${isStatement ? ITEM_WIDTH : '240'}px; 
-                                height: ${isStatement ? ITEM_HEIGHT : NOTE_HEIGHT}px; 
+                                width: ${ITEM_WIDTH}px; 
+                                height: ${ITEM_HEIGHT}px; 
                                 z-index: ${isMoving ? 1000 : (isSource ? 100 : 10)};"
                         onmousedown="handleDragStart(event, '${item.id}', ${item.x}, ${item.y})"
                         ontouchstart="handleDragStart(event, '${item.id}', ${item.x}, ${item.y})"
@@ -1213,6 +1243,7 @@
         window.toggleArea = toggleArea;
         window.toggleIdea = toggleIdea;
         window.toggleConcept = toggleConcept;
+        window.handleTextEdit = handleTextEdit; // Exported for onblur event
 
         // --- Initial Load ---
         window.onload = setupFirebase;
