@@ -481,7 +481,7 @@
             if (!state.isDragging || !state.draggedItemId) return;
             
             const clientX = e.clientX || e.touches?.[0]?.clientX;
-            const clientY = e.clientY || e.touches?.[0]?.clientY;
+            const clientY = e.touches?.[0]?.clientY;
             if (typeof clientX === 'undefined' || typeof clientY === 'undefined') return;
             
             // Prevent scrolling on mobile during drag
@@ -546,19 +546,17 @@
 
         // --- Drag and Drop Logic (Drawer to Canvas) ---
 
-        function handleStatementDragStart(e, statement, concept, areaColor) {
-            const dragData = {
-                type: 'Statement',
-                text: statement.text,
-                color: areaColor,
-                level: statement.level,
-                knowDo: statement.type,
-                subject: statement.subject,
-                concept: concept.name,
-                conceptDescription: concept.description,
-            };
-            e.dataTransfer.setData("application/json", JSON.stringify(dragData));
-            e.dataTransfer.effectAllowed = "copy";
+        // UPDATED: This now reads the payload from the element's data attribute
+        function handleStatementDragStart(e) {
+            const dragPayload = e.currentTarget.dataset.payload;
+            
+            if (dragPayload) {
+                e.dataTransfer.setData("application/json", dragPayload);
+                e.dataTransfer.effectAllowed = "copy";
+            } else {
+                e.preventDefault();
+                console.error("Drag payload missing.");
+            }
         }
 
         function handleDrop(e) {
@@ -576,6 +574,8 @@
 
             try {
                 const data = e.dataTransfer.getData("application/json");
+                if (!data) return; // Prevent processing empty data
+
                 const dragData = JSON.parse(data);
 
                 if (dragData.type === 'Statement') {
@@ -917,7 +917,7 @@
                             class="flex justify-between items-center w-full p-2 rounded-md ${area.color.replace('600', '100')} ${areaColorClass} font-semibold text-left transition-colors duration-150 hover:bg-gray-200"
                         >
                             ${area.area}
-                            <svg id="area-icon-${areaId}" class="w-4 h-4 transform transition-transform duration-300 ${area.isOpen ? 'rotate-90' : 'rotate-0'}" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"></path></svg>
+                            <svg id="area-icon-${areaId}" class="w-4 h-4 transform transition-transform duration-300 ${area.isOpen ? 'rotate-180' : 'rotate-0'}" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                         </button>
                         <div id="area-content-${areaId}" class="${area.isOpen ? 'block' : 'hidden'}">
                 `;
@@ -953,13 +953,25 @@
                         `;
 
                         concept.statements.forEach((statement, index) => {
-                            const dragData = { text: statement.text, level: statement.level, type: statement.type, subject: statement.subject };
-                            const statementData = JSON.stringify(dragData).replace(/"/g, '&quot;');
+                            // NEW: Create the full drag payload object
+                            const dragPayload = {
+                                type: 'Statement',
+                                text: statement.text,
+                                color: area.color, // Use the area color for the resulting item
+                                level: statement.level,
+                                knowDo: statement.type,
+                                subject: statement.subject,
+                                concept: concept.name,
+                                conceptDescription: concept.description,
+                            };
+                            // NEW: Stringify the payload and escape quotes for HTML attribute
+                            const statementDataJson = JSON.stringify(dragPayload).replace(/"/g, '&quot;');
                             
                             html += `
                                 <div
                                     draggable="true"
-                                    ondragstart="handleStatementDragStart(event, ${statementData}, { name: '${concept.name}', description: '${concept.description}' }, '${area.color}')"
+                                    ondragstart="handleStatementDragStart(event)"
+                                    data-payload="${statementDataJson}"
                                     class="p-2 my-1 rounded-md text-sm cursor-grab shadow-sm transition-all duration-200 
                                     ${statement.type === 'Know' ? 'bg-gray-100 hover:bg-gray-200 border-l-4 border-blue-400' : 'bg-gray-100 hover:bg-gray-200 border-l-4 border-teal-400'}"
                                 >
@@ -1006,11 +1018,11 @@
             
             if (contentEl.classList.contains('hidden')) {
                 contentEl.classList.remove('hidden');
-                iconEl.classList.add('rotate-90');
+                iconEl.classList.add('rotate-180'); // Adjusted for chevron down/up
                 iconEl.classList.remove('rotate-0');
             } else {
                 contentEl.classList.add('hidden');
-                iconEl.classList.remove('rotate-90');
+                iconEl.classList.remove('rotate-180');
                 iconEl.classList.add('rotate-0');
             }
         }
@@ -1141,7 +1153,7 @@
         
         // --- Global Exports (for inline HTML event handlers) ---
         window.updateState = updateState;
-        window.handleStatementDragStart = handleStatementDragStart;
+        window.handleStatementDragStart = handleStatementDragStart; // Refactored function
         window.handleDrop = handleDrop;
         window.handleDragOver = handleDragOver;
         window.handleDragStart = handleDragStart;
