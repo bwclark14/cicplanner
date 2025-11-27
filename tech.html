@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Curriculum Explorer</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Configure Tailwind to use the Inter font and a suitable colour palette -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        'primary-blue': '#1D4ED8',
+                        'secondary-gray': '#F9FAFB',
+                        'accent-teal': '#0D9488',
+                    }
+                }
+            },
+        }
+    </script>
+    <style>
+        /* Custom styles for the progression view for better readability */
+        .progression-grid {
+            display: grid;
+            /* Concept column + 5 Levels */
+            grid-template-columns: 200px repeat(5, minmax(150px, 1fr)); 
+            gap: 1px;
+            border: 1px solid #E5E7EB;
+        }
+        .progression-header {
+            background-color: #F3F4F6;
+            font-weight: 600;
+            padding: 1rem;
+            text-align: center;
+        }
+        .progression-cell {
+            padding: 0.75rem;
+            line-height: 1.4;
+            text-align: left;
+            border-bottom: 1px solid #E5E7EB;
+            overflow-wrap: break-word;
+        }
+        .concept-col {
+            background-color: #FEF2F2; /* Light red for concept column */
+            font-weight: 600;
+            text-align: left;
+            padding: 0.75rem;
+            display: flex;
+            align-items: center;
+            border-right: 1px solid #E5E7EB;
+        }
+
+        /* Mobile adjustments for the grid */
+        @media (max-width: 768px) {
+            .progression-grid {
+                grid-template-columns: 100%; /* Stack everything on mobile */
+                gap: 0;
+            }
+            .progression-header, .concept-col, .progression-cell {
+                border: 1px solid #E5E7EB;
+                margin-bottom: -1px;
+            }
+        }
+    </style>
+</head>
+<body class="bg-secondary-gray font-sans min-h-screen p-4 md:p-8">
+
+    <div id="app" class="max-w-7xl mx-auto bg-white rounded-xl shadow-2xl p-6 md:p-10">
+        <header class="mb-8">
+            <h1 class="text-3xl md:text-4xl font-extrabold text-gray-900 mb-2">Curriculum Framework Explorer</h1>
+            <p class="text-lg text-gray-500">Explore Big Ideas, Concepts, and their Conceptual Development levels.</p>
+        </header>
+
+        <!-- Tab Navigation -->
+        <div class="border-b border-gray-200 mb-8">
+            <nav class="-mb-px flex space-x-8" aria-label="Tabs">
+                <button onclick="setActiveView('bigIdeas')" id="tab-bigIdeas"
+                    class="py-3 px-1 text-sm md:text-base font-medium text-primary-blue border-b-2 border-primary-blue transition-colors duration-200">
+                    1. Big Ideas Overview
+                </button>
+                <button onclick="setActiveView('concepts')" id="tab-concepts"
+                    class="py-3 px-1 text-sm md:text-base font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300 transition-colors duration-200">
+                    2. Concept Descriptions
+                </button>
+                <button onclick="setActiveView('progression')" id="tab-progression"
+                    class="py-3 px-1 text-sm md:text-base font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300 transition-colors duration-200">
+                    3. Conceptual Progression
+                </button>
+            </nav>
+        </div>
+
+        <!-- View Containers -->
+        <div id="view-bigIdeas" class="view-content hidden"></div>
+        <div id="view-concepts" class="view-content hidden"></div>
+        <div id="view-progression" class="view-content hidden"></div>
+    </div>
+
+    <script>
+        // --- DATA INPUT (UK English spelling applied: analyse, organisation, colour, modelling etc.) ---
+        const BIG_IDEAS_RAW = [
+            { id: 'TCH 1', area: 'Technologies', name: 'EVERYTHING CONNECTS', shortDesc: 'All systems (physical, digital, social and economic) are made up of interdependent parts that work together to perform tasks and achieve outcomes.', desc: 'All systems (physical, digital, social, and economic) are made up of interdependent parts that work together to perform tasks and achieve outcomes. Every domain, from computing science to global commerce, relies on systems. Understanding a system requires analysing the inputs, processes, and outputs - whether these components are physical (materials), digital (algorithms), or human (people, policies). This knowledge allows learners to model, troubleshoot, and optimise processes within manufacturing operations, understand the workings of digital technologies, and analyse the complexity of social and global business and economic systems.' },
+            { id: 'TCH 2', area: 'Technologies', name: 'INNOVATION, DESIGN, AND ENTERPRISE IN ACTION (IDEAs)', shortDesc: 'Learners experience how products, services, and solutions are created with purpose, tested, and improved through feedback and iteration.', desc: 'Innovation is a continual, iterative process of problem finding, prototyping, testing, and refining. It relies on creativity, curiosity, and resilience, learning from failure and adapting to change. Through design, learners experience how products, services, and solutions are created with purpose, tested, and improved through feedback and iteration. They use creativity and collaboration to identify opportunities, use the techniques and knowledge from Make It Happen to develop and model ideas (whether physical, digital, or business related), and refine them against intended purposes and user needs. This demonstrates that strong solutions emerge not fully formed but through cycles of exploration, analysis, and improvement.' },
+            { id: 'TCH 3', area: 'Technologies', name: 'MAKE IT HAPPEN', shortDesc: 'Every discipline has its own set of tools, processes and materials that help us bring ideas, services and products to life in a logical and coherent way.', desc: 'Processes, tools, and materials help people understand the world and bring ideas to life. Learners develop techniques which might include the structured processes of coding or manufacturing, the safe, accurate and proficient use of tools (digital or physical), and the selection of appropriate materials based on their properties, capabilities and constraints. Developing these techniques allow learners to create, model, and safely apply their knowledge as part of Innovation, Design and Enterprise in Action.' },
+            { id: 'TCH 4', area: 'Technologies', name: 'A DATA RICH WORLD', shortDesc: 'Data and information can be generated, collected, analysed and represented to understand the world, create models and support decision.', desc: 'In a data rich world, the ability to generate meaning from information is a critical skill for life and work. Learners explore how raw data is systematically collected (e.g. in databases, surveys, or sensor readings), how it is represented for humans (e.g. using graphs, models) and how to apply critical analysis to draw valid conclusions.' },
+            { id: 'TCH 5', area: 'Technologies', name: 'PEOPLE AND PLANET', shortDesc: 'The ethics involved in evaluating technological choices and the duty to act for the good of society and the environment.', desc: 'There are economic, environmental, and human implications of the decisions that we make and of the technology we use. Technological decisions have far-reaching consequences that extend beyond the immediate problem being solved. Learners must develop an ethical and critical lens to understand the economic costs and benefits, the environmental footprint of production, use and disposal, and the wider human impact (e.g. social equity, accessibility, wellbeing). This fosters the capacity to make responsible decisions about the development and use of technology, ensuring innovation serves a positive societal purpose.' }
+        ];
+
+        const CONCEPTS_RAW = [
+            { conceptId: 1, conceptNo: 'a', bigIdeaId: 'TCH 1', name: 'TYPES OF SYSTEMS', desc: 'Systems exist in many forms, each with its own structure, purpose, and rules. Learners must be able to recognise different categories of systems, physical, computer, social, and economic, and understand how they are designed, how they behave and how they respond to change. Each type uses different mechanisms but relies on the principles of organisation, flow, and interaction. Systems themselves are often parts of bigger systems.' },
+            { conceptId: 2, conceptNo: 'b', bigIdeaId: 'TCH 1', name: 'COMPONENTS', desc: 'All systems are built from components: individual parts that each have a purpose and contribute to the overall function. These components can be physical (materials, mechanisms, devices), digital (code, services, data structures), or human (people, roles, rules, behaviours). Understanding a system means identifying these parts, recognising what each one does, and analysing how they connect and depend on one another. Components rarely act alone; it is the interactions between them that make a system work.' },
+            { conceptId: 3, conceptNo: 'a', bigIdeaId: 'TCH 2', name: 'TECHNOLOGICAL THINKING', desc: 'These are the cognitive approaches or mindsets used to explore, discover, and define problems before generating and refining potential solutions. These mindsets focus on understanding the real problem through analysing problem statements, problem finding and problem definition.' },
+            { conceptId: 4, conceptNo: 'b', bigIdeaId: 'TCH 2', name: 'DEVELOPING IDEAS', desc: 'Development processes are structured methods for planning, creating, testing, and delivering solutions once the problem has already been identified and defined. They use iteration primarily to refine the solution. Some use repeated cycles of building and feedback, while others follow more linear, predictable steps.' },
+            { conceptId: 5, conceptNo: 'c', bigIdeaId: 'TCH 2', name: 'COMMUNICATING IDEAS', desc: 'The process of expressing, sharing, clarifying, and refining concepts, insights, and proposed solutions with an audience, including team members, stakeholders, and users. It relies on iteration, continually revisiting language, visuals, explanations, and demonstrations to ensure the message becomes clearer and better aligned with the needs, backgrounds, and perspectives of the people receiving it.' },
+            { conceptId: 6, conceptNo: 'a', bigIdeaId: 'TCH 3', name: 'PROPERTIES', desc: 'Understanding the possibilities and limitations of specific tools and materials(digital or physical) when selecting the most appropriate resource(s) for a task/outcome/solution.' },
+            { conceptId: 7, conceptNo: 'b', bigIdeaId: 'TCH 3', name: 'TECHNIQUES', desc: 'The proficient application of knowledge and methods unique (digital or physical) to a discipline. The structured sequence of steps required to execute a process reliably' },
+            { conceptId: 8, conceptNo: 'c', bigIdeaId: 'TCH 3', name: 'RISK', desc: 'Understanding the risks involved in using tools, processes and materials (digital or physical). Apply appropriate mitigations during the use of tools and materials (digital or physical) and have the resilience to respond and recover when necessary. Consider potential risks during the development stages of solutions.' },
+            { conceptId: 9, conceptNo: 'a', bigIdeaId: 'TCH 4', name: 'SOURCING DATA', desc: 'Understanding how data is ethically collected, generated, or obtained from a range of qualitative and quantitative sources. This includes evaluating the reliability, accuracy, and validity of potential sources; recognising biases or limitations in how data is gathered; and ensuring that the data selected is appropriate, relevant, and fit for the intended purpose.' },
+            { conceptId: 10, conceptNo: 'b', bigIdeaId: 'TCH 4', name: 'MAKING SENSE OF DATA', desc: 'Understanding that data can be organised, structured, transformed, and modelled to reveal meaning. This includes cleaning or preparing raw data; choosing appropriate representations (such as charts, tables, mappings, simulations, or code based models) to highlight patterns, relationships, or changes; and recognising that different forms of representation make certain insights easier to identify depending on the purpose or audience' },
+            { conceptId: 11, conceptNo: 'c', bigIdeaId: 'TCH 4', name: 'USE OF DATA', desc: 'Understanding how analysed data and information can be interpreted, evaluated, and applied to make informed decisions. This includes assessing the trustworthiness and relevance of the evidence; identifying valid conclusions supported by the data; and using these insights to justify or select an optimal course of action' },
+            { conceptId: 12, conceptNo: 'a', bigIdeaId: 'TCH 5', name: 'ECONOMIC', desc: 'Understanding the financial and resource related implications of technological choices. This includes evaluating costs, benefits, efficiency, value creation, and the distribution of advantages or disadvantages across individuals, organisations, and society.' },
+            { conceptId: 13, conceptNo: 'b', bigIdeaId: 'TCH 5', name: 'ENVIRONMENTAL', desc: 'Evaluating the effects of technological choices on the natural environment. This includes resource use, energy consumption, waste, emissions, and sustainability across the full life cycle of a product or system.' },
+            { conceptId: 14, conceptNo: 'c', bigIdeaId: 'TCH 5', name: 'ETHICAL', desc: 'Understanding and applying moral principles when making technological decisions. Ethics guides learners to consider fairness, justice, safety, responsibility, and the broader wellbeing of society and the planet. It helps evaluate what should be done, not just what can be done.' },
+            { conceptId: 15, conceptNo: 'd', bigIdeaId: 'TCH 5', name: 'SOCIAL', desc: 'Considering the effects of technology on people, communities, and society. This includes equity, accessibility, wellbeing, safety, cultural impact, and the broader human consequences of technological decisions.' }
+        ];
+
+        const CONCEPTUAL_DEVELOPMENT_RAW = [
+            { conceptId: 1, level: 0, desc: 'Learners notice simple systems around them (e.g. things that move, light up, open, or go together) without yet understanding how they work. They see systems as single objects rather than organised parts.' },
+            { conceptId: 1, level: 1, desc: 'Learners begin recognising that systems do things because parts are arranged in a certain way. They identify familiar system types and describe what the system “does” as its behaviour.' },
+            { conceptId: 1, level: 2, desc: 'Understand that systems consist of connected parts working together and begin comparing different types of systems by purpose and behaviour. They recognise that changing one part can affect how the system behaves.' },
+            { conceptId: 1, level: 3, desc: 'Analyse systems by examining their structure, behaviours, and functions. They identify system types by how their parts interact and explain how changes or failures influence the overall system.' },
+            { conceptId: 1, level: 4, desc: 'Understand systems as complex, interconnected structures with predictable and sometimes unpredictable behaviours. They compare and evaluate system types, considering purpose, efficiency, reliability, and interactions within and between systems.' },
+            { conceptId: 2, level: 0, desc: 'Explore objects as collections of parts, noticing features like buttons, wheels, or sections but without understanding functional connections. They recognise that parts “belong” to whole things.' },
+            { conceptId: 2, level: 1, desc: 'Begin defining simple problems and recognise that solutions have requirements They compare ideas and choose ones that “work better.”' },
+            { conceptId: 2, level: 2, desc: 'Understand that components have specific purposes within systems and that the way they connect affects system behaviour. They begin predicting how changing or removing a component affects the whole.' },
+            { conceptId: 2, level: 3, desc: 'Analyse components by function, purpose, and the role they play in system behaviour. They understand that components often interact in co-ordinated sequences and that design choices influence performance.' },
+            { conceptId: 2, level: 4, desc: 'Examine components as parts of complex networks, analysing how purpose, connection, and dependency shape system performance. They evaluate component choices and configurations to optimise outcomes or solve problems.' },
+            { conceptId: 3, level: 0, desc: 'Thinking is exploratory and sensory. Learners notice simple problems and respond with immediate ideas (“Let’s try this!”). They think in concrete terms and experiment through trial and error.' },
+            { conceptId: 3, level: 1, desc: 'Begin defining simple problems and recognise that solutions have requirements They compare ideas and choose ones that “work better.”' },
+            { conceptId: 3, level: 2, desc: 'Thinking becomes more analytical: learners identify needs, constraints, and opportunities; consider multiple solution paths; and begin justifying choices.' },
+            { conceptId: 3, level: 3, desc: 'Think systematically: analyse systems, consider trade offs, identify risks, and evaluate options. Begin strategic planning and predicting likely outcomes of choices.' },
+            { conceptId: 3, level: 4, desc: 'Apply reasoning to design: consider stakeholders, ethics, sustainability, efficiency, and broader system impacts. Identify problems and propose innovative opportunities.' },
+            { conceptId: 4, level: 0, desc: 'Ideas are generated through play. Solutions emerge from building, drawing, or selecting materials. Testing is simple (“Does it work?”). Iteration is spontaneous.' },
+            { conceptId: 4, level: 1, desc: 'Follow simple design steps: plan > make > try > improve. Generate several ideas and choose one. Begin testing solutions using basic criteria.' },
+            { conceptId: 4, level: 2, desc: 'Use more structured processes: researching, sketching, modelling, prototyping, and evaluating. Iterate intentionally, making improvements based on evidence.' },
+            { conceptId: 4, level: 3, desc: 'Plan systematically: produce detailed design plans, consider requirements and constraints, develop prototypes, and test using measurable criteria.' },
+            { conceptId: 4, level: 4, desc: 'Use development cycles: multiple prototypes, data driven testing, user feedback, and refinement to achieve reliable, high quality solutions.' },
+            { conceptId: 5, level: 0, desc: 'Communication is through talk, gesture, drawings, and simple models. Learners describe what they made and what it does.' },
+            { conceptId: 5, level: 1, desc: 'Use labelled drawings, simple diagrams, and spoken explanations. They can share their plan and describe the steps they took.' },
+            { conceptId: 5, level: 2, desc: 'Communication includes sketches, models, presentations, and written descriptions. Learners explain why they chose certain ideas and how the solution works.' },
+            { conceptId: 5, level: 3, desc: 'Communication expands to include technical drawings, digital prototypes, pitch decks, and structured reports. They justify design decisions' },
+            { conceptId: 5, level: 4, desc: 'Communication is adapted for varied audiences and purposes (stakeholders, users, peers), including user documentation, design portfolios, and collaborative design notes.' },
+            { conceptId: 6, level: 0, desc: 'Explore objects as collections of parts, noticing features like buttons, wheels, or sections but without understanding functional connections. They recognise that parts “belong” to whole things.' },
+            { conceptId: 6, level: 1, desc: 'Begin defining simple problems and recognise that solutions have requirements They compare ideas and choose ones that “work better.”' },
+            { conceptId: 6, level: 2, desc: 'Understand that components have specific purposes within systems and that the way they connect affects system behaviour. They begin predicting how changing or removing a component affects the whole.' },
+            { conceptId: 6, level: 3, desc: 'Analyse components by function, purpose, and the role they play in system behaviour. They understand that components often interact in co-ordinated sequences and that design choices influence performance.' },
+            { conceptId: 6, level: 4, desc: 'Examine components as parts of complex networks, analysing how purpose, connection, and dependency shape system performance. They evaluate component choices and configurations to optimise outcomes or solve problems.' },
+            { conceptId: 7, level: 0, desc: 'Thinking is exploratory and sensory. Learners notice simple problems and respond with immediate ideas (“Let’s try this!”). They think in concrete terms and experiment through trial and error.' },
+            { conceptId: 7, level: 1, desc: 'Follow simple design steps: plan > make > try > improve. Generate several ideas and choose one. Begin testing solutions using basic criteria.' },
+            { conceptId: 7, level: 2, desc: 'Use more structured processes: researching, sketching, modelling, prototyping, and evaluating. Iterate intentionally, making improvements based on evidence.' },
+            { conceptId: 7, level: 3, desc: 'Plan systematically: produce detailed design plans, consider requirements and constraints, develop prototypes, and test using measurable criteria.' },
+            { conceptId: 7, level: 4, desc: 'Use development cycles: multiple prototypes, data driven testing, user feedback, and refinement to achieve reliable, high quality solutions.' },
+            { conceptId: 8, level: 0, desc: 'Ideas are generated through play. Solutions emerge from building, drawing, or selecting materials. Testing is simple (“Does it work?”). Iteration is spontaneous.' },
+            { conceptId: 8, level: 1, desc: 'Use labelled drawings, simple diagrams, and spoken explanations. They can share their plan and describe the steps they took.' },
+            { conceptId: 8, level: 2, desc: 'Communication includes sketches, models, presentations, and written descriptions. Learners explain why they chose certain ideas and how the solution works.' },
+            { conceptId: 8, level: 3, desc: 'Communication expands to include technical drawings, digital prototypes, pitch decks, and structured reports. They justify design decisions' },
+            { conceptId: 8, level: 4, desc: 'Communication is adapted for varied audiences and purposes (stakeholders, users, peers), including user documentation, design portfolios, and collaborative design notes.' },
+            { conceptId: 9, level: 0, desc: 'Learners notice simple systems around them (e.g. things that move, light up, open, or go together) without yet understanding how they work. They see systems as single objects rather than organised parts.' },
+            { conceptId: 9, level: 1, desc: 'Learners begin recognising that systems do things because parts are arranged in a certain way. They identify familiar system types and describe what the system “does” as its behaviour.' },
+            { conceptId: 9, level: 2, desc: 'Understand that systems consist of connected parts working together and begin comparing different types of systems by purpose and behaviour. They recognise that changing one part can affect how the system behaves.' },
+            { conceptId: 9, level: 3, desc: 'Analyse systems by examining their structure, behaviours, and functions. They identify system types by how their parts interact and explain how changes or failures influence the overall system.' },
+            { conceptId: 9, level: 4, desc: 'Understand systems as complex, interconnected structures with predictable and sometimes unpredictable behaviours. They compare and evaluate system types, considering purpose, efficiency, reliability, and interactions within and between systems.' },
+            { conceptId: 10, level: 0, desc: 'Explore objects as collections of parts, noticing features like buttons, wheels, or sections but without understanding functional connections. They recognise that parts “belong” to whole things.' },
+            { conceptId: 10, level: 1, desc: 'Begin defining simple problems and recognise that solutions have requirements They compare ideas and choose ones that “work better.”' },
+            { conceptId: 10, level: 2, desc: 'Understand that components have specific purposes within systems and that the way they connect affects system behaviour. They begin predicting how changing or removing a component affects the whole.' },
+            { conceptId: 10, level: 3, desc: 'Analyse components by function, purpose, and the role they play in system behaviour. They understand that components often interact in co-ordinated sequences and that design choices influence performance.' },
+            { conceptId: 10, level: 4, desc: 'Examine components as parts of complex networks, analysing how purpose, connection, and dependency shape system performance. They evaluate component choices and configurations to optimise outcomes or solve problems.' },
+            { conceptId: 11, level: 0, desc: 'Thinking is exploratory and sensory. Learners notice simple problems and respond with immediate ideas (“Let’s try this!”). They think in concrete terms and experiment through trial and error.' },
+            { conceptId: 11, level: 1, desc: 'Begin defining simple problems and recognise that solutions have requirements They compare ideas and choose ones that “work better.”' },
+            { conceptId: 11, level: 2, desc: 'Thinking becomes more analytical: learners identify needs, constraints, and opportunities; consider multiple solution paths; and begin justifying choices.' },
+            { conceptId: 11, level: 3, desc: 'Think systematically: analyse systems, consider trade offs, identify risks, and evaluate options. Begin strategic planning and predicting likely outcomes of choices.' },
+            { conceptId: 11, level: 4, desc: 'Apply reasoning to design: consider stakeholders, ethics, sustainability, efficiency, and broader system impacts. Identify problems and propose innovative opportunities.' },
+            { conceptId: 12, level: 0, desc: 'Ideas are generated through play. Solutions emerge from building, drawing, or selecting materials. Testing is simple (“Does it work?”). Iteration is spontaneous.' },
+            { conceptId: 12, level: 1, desc: 'Follow simple design steps: plan > make > try > improve. Generate several ideas and choose one. Begin testing solutions using basic criteria.' },
+            { conceptId: 12, level: 2, desc: 'Use more structured processes: researching, sketching, modelling, prototyping, and evaluating. Iterate intentionally, making improvements based on evidence.' },
+            { conceptId: 12, level: 3, desc: 'Plan systematically: produce detailed design plans, consider requirements and constraints, develop prototypes, and test using measurable criteria.' },
+            { conceptId: 12, level: 4, desc: 'Use development cycles: multiple prototypes, data driven testing, user feedback, and refinement to achieve reliable, high quality solutions.' },
+            { conceptId: 13, level: 0, desc: 'Communication is through talk, gesture, drawings, and simple models. Learners describe what they made and what it does.' },
+            { conceptId: 13, level: 1, desc: 'Use labelled drawings, simple diagrams, and spoken explanations. They can share their plan and describe the steps they took.' },
+            { conceptId: 13, level: 2, desc: 'Communication includes sketches, models, presentations, and written descriptions. Learners explain why they chose certain ideas and how the solution works.' },
+            { conceptId: 13, level: 3, desc: 'Communication expands to include technical drawings, digital prototypes, pitch decks, and structured reports. They justify design decisions' },
+            { conceptId: 13, level: 4, desc: 'Communication is adapted for varied audiences and purposes (stakeholders, users, peers), including user documentation, design portfolios, and collaborative design notes.' },
+            { conceptId: 14, level: 0, desc: 'Explore objects as collections of parts, noticing features like buttons, wheels, or sections but without understanding functional connections. They recognise that parts “belong” to whole things.' },
+            { conceptId: 14, level: 1, desc: 'Begin defining simple problems and recognise that solutions have requirements They compare ideas and choose ones that “work better.”' },
+            { conceptId: 14, level: 2, desc: 'Understand that components have specific purposes within systems and that the way they connect affects system behaviour. They begin predicting how changing or removing a component affects the whole.' },
+            { conceptId: 14, level: 3, desc: 'Analyse components by function, purpose, and the role they play in system behaviour. They understand that components often interact in co-ordinated sequences and that design choices influence performance.' },
+            { conceptId: 14, level: 4, desc: 'Examine components as parts of complex networks, analysing how purpose, connection, and dependency shape system performance. They evaluate component choices and configurations to optimise outcomes or solve problems.' },
+            { conceptId: 15, level: 0, desc: 'Thinking is exploratory and sensory. Learners notice simple problems and respond with immediate ideas (“Let’s try this!”). They think in concrete terms and experiment through trial and error.' },
+            { conceptId: 15, level: 1, desc: 'Begin defining simple problems and recognise that solutions have requirements They compare ideas and choose ones that “work better.”' },
+            { conceptId: 15, level: 2, desc: 'Thinking becomes more analytical: learners identify needs, constraints, and opportunities; consider multiple solution paths; and begin justifying choices.' },
+            { conceptId: 15, level: 3, desc: 'Think systematically: analyse systems, consider trade offs, identify risks, and evaluate options. Begin strategic planning and predicting likely outcomes of choices.' },
+            { conceptId: 15, level: 4, desc: 'Apply reasoning to design: consider stakeholders, ethics, sustainability, efficiency, and broader system impacts. Identify problems and propose innovative opportunities.' }
+        ];
+        
+        // --- NEW EXAMPLES DATA ---
+        const EXAMPLES_RAW = {
+            '1': [ // TYPES OF SYSTEMS (TCH 1a)
+                'Computer Systems, Networks',
+                'Markets, supply chains',
+                'Production lines, mechanical systems',
+                'Organisations, teams',
+                'Financial and economic systems'
+            ],
+            '2': [ // COMPONENTS (TCH 1b)
+                'In a computer system, components include processors, software, protocols, interfaces etc',
+                'Economic models look at different factors contributing to growth',
+                'Financial systems have rules that govern the processing and presenting of financial data',
+                'In a manufacturing system, components could include standards, materials, templates etc'
+            ],
+            '3': [ // TECHNOLOGICAL THINKING (TCH 2a)
+                'breaking complex issues into smaller, manageable parts',
+                'identifying patterns and removing unnecessary detail',
+                'observing users to uncover needs',
+                'reframing a challenge',
+                'testing assumptions about value, feasibility, or desirability',
+                'revisiting the problem statement when new evidence arises'
+            ],
+            '4': [ // DEVELOPING IDEAS (TCH 2b)
+                'a step by step sequence where each phase is completed before moving to the next',
+                'short, repeated cycles of building small increments, gathering feedback, and improving the solution',
+                'Prototype driven approaches where early versions are created quickly and refined through user interaction'
+            ],
+            '5': [ // COMMUNICATING IDEAS (TCH 2c)
+                'expressing early thoughts in clear, accessible language tailored to the audience',
+                'using sketches, diagrams, models, or storyboards to make complex or abstract ideas understandable',
+                'presenting draft concepts or prototypes to team members or users to gather reactions and uncover misunderstandings',
+                'adapting explanations when the audience has different knowledge, roles, or priorities',
+                'narrating the reasoning behind decisions so others can evaluate, challenge, or build on them',
+                'checking for shared understanding',
+                'refining messages based on questions, confusion, or new insights that emerge from others',
+                'documenting work to explain how / why decisions were taken for future updates that may involve other people'
+            ],
+            '6': [ // PROPERTIES (TCH 3a)
+                'Knowing which material is strong enough for a structure or flexible enough for a prototype',
+                'Recognising which digital tool can perform the required function effectively',
+                'Understanding limits of equipment or software to avoid failure'
+            ],
+            '7': [ // TECHNIQUES (TCH 3b)
+                'Following a workflow to create a program',
+                'Using precise measurement, cutting, or assembly methods',
+                'Applying standardised procedures to analyse data or create annual reports',
+                'Debugging or tracing errors to identify and fix problems'
+            ],
+            '8': [ // RISK (TCH 3c)
+                'Identifying hazards in a workshop',
+                'Checking that digital systems are protected against cyber threats',
+                'Plans to recover from incidents',
+                'Ensuring decisions minimise potential loss or instability',
+                'Reviewing risks before collecting or storing user data'
+            ],
+            '9': [ // SOURCING DATA (TCH 4a)
+                'Conducting surveys, interviews, or focus groups to understand user or customer preferences',
+                'Performing physical or digital measurements such as weight, time, temperature, distances, or task durations',
+                'Collecting operational metrics, logs, or sensor readings to monitor performance or behaviour',
+                'Researching existing datasets, competitor information, or publicly available reports to inform decision making'
+            ],
+            '10': [ // MAKING SENSE OF DATA (TCH 4b)
+                'Converting raw measurements into structured tables or graphs to identify trends or anomalies',
+                'Analysing survey or interview results to group responses, calculate averages, or identify recurring themes',
+                'Creating visual or computational models, such as simulations or workflow diagrams, to test assumptions or explore “what if” scenarios',
+                'Summarising data to show comparisons or highlight patterns'
+            ],
+            '11': [ // USE OF DATA (TCH 4c)
+                'Picking the fastest, easiest, or best way to do something after looking at how well different options perform',
+                'Choosing a design direction or product feature based on feedback',
+                'Making changes to how things are done or what materials are used after looking at patterns or testing ideas with a model',
+                'Using information from research, measurements, and models to help decide the best plan or strategy'
+            ],
+            '12': [ // ECONOMIC (TCH 5a)
+                'Comparing the cost effectiveness of different materials for a product',
+                'Analysing whether automating a process saves resources compared with manual labour',
+                'Considering how access to technology may create economic advantages or disadvantages for different communities'
+            ],
+            '13': [ // ENVIRONMENTAL (TCH 5b)
+                'Assessing the environmental footprint of packaging, manufacturing, or energy use',
+                'Selecting renewable or recycled materials when designing products',
+                'Evaluating the long-term sustainability of digital systems or manufacturing processes'
+            ],
+            '14': [ // ETHICAL (TCH 5c)
+                'Choosing not to use a cheaper material that harms the environment, even if it reduces costs',
+                'Designing technology to be inclusive and accessible for all users',
+                'Considering privacy, consent, and fairness when developing digital systems or collecting user data'
+            ],
+            '15': [ // SOCIAL (TCH 5d)
+                'Designing tools, devices, or systems that are accessible to people with different abilities',
+                'Assessing how a new transport system or technology might affect different communities',
+                'Considering wellbeing, privacy, and safety when introducing technologies in schools or workplaces'
+            ]
+        }
+
+        // --- DATA PROCESSING (MAPPING AND MERGING) ---
+        const ALL_DATA = BIG_IDEAS_RAW.map(bi => {
+            const concepts = CONCEPTS_RAW
+                .filter(c => c.bigIdeaId === bi.id)
+                .map(c => {
+                    const progression = CONCEPTUAL_DEVELOPMENT_RAW
+                        .filter(cd => cd.conceptId === c.conceptId)
+                        .sort((a, b) => a.level - b.level);
+
+                    return {
+                        ...c,
+                        progression: progression.reduce((acc, item) => {
+                            acc[item.level] = item.desc;
+                            return acc;
+                        }, {}),
+                        examples: EXAMPLES_RAW[c.conceptId] || [] // Add new examples data
+                    };
+                });
+
+            return {
+                ...bi,
+                concepts: concepts
+            };
+        });
+        
+        // Flatten the concepts for easy filtering in the Progression View
+        const ALL_CONCEPTS_FLAT = ALL_DATA.flatMap(bi => bi.concepts.map(c => ({
+            id: `${c.bigIdeaId}${c.conceptNo.toUpperCase()}`,
+            name: c.name,
+            progression: c.progression,
+            bigIdeaId: c.bigIdeaId
+        })));
+
+        // Helper function for rendering elements
+        function createEl(tag, classes, content = '') {
+            const el = document.createElement(tag);
+            el.className = classes;
+            if (typeof content === 'string') {
+                el.innerHTML = content;
+            } else if (content instanceof Node) {
+                el.appendChild(content);
+            } else if (Array.isArray(content)) {
+                content.forEach(c => el.appendChild(c));
+            }
+            return el;
+        }
+
+        // --- VIEW 1: BIG IDEAS OVERVIEW ---
+        function renderBigIdeas() {
+            const container = document.getElementById('view-bigIdeas');
+            container.innerHTML = '';
+
+            const listContainer = createEl('div', 'space-y-6');
+
+            ALL_DATA.forEach(bi => {
+                const biCard = createEl('div', 'bg-white border border-gray-200 rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300 overflow-hidden');
+                
+                // Header (Clickable)
+                const header = createEl('div', 'p-5 cursor-pointer bg-primary-blue/5 hover:bg-primary-blue/10 transition-colors duration-200 flex justify-between items-center',
+                    `<div class="flex-grow">
+                        <span class="text-xs font-semibold uppercase text-primary-blue">${bi.id} / ${bi.area}</span>
+                        <h2 class="text-xl md:text-2xl font-bold text-gray-800">${bi.name}</h2>
+                        <p class="mt-1 text-sm text-gray-600">${bi.shortDesc}</p>
+                    </div>
+                    <svg class="w-6 h-6 text-primary-blue transform transition-transform duration-300" data-toggle="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path data-toggle="icon-path" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    `
+                );
+
+                // Content (Hidden by default)
+                const content = createEl('div', 'p-5 border-t border-gray-200 hidden',
+                    `<h3 class="text-lg font-semibold text-accent-teal mb-3">Detailed Description</h3>
+                    <p class="text-gray-700 mb-6">${bi.desc}</p>
+                    
+                    <h3 class="text-lg font-semibold text-accent-teal mb-3">Associated Concepts (${bi.concepts.length})</h3>
+                    <ul class="list-none space-y-3">
+                        ${bi.concepts.map(c => 
+                            `<li class="flex items-start text-sm md:text-base">
+                                <span class="inline-block w-2 h-2 mr-3 mt-1 bg-accent-teal rounded-full flex-shrink-0"></span>
+                                <div class="flex-grow">
+                                    <strong class="text-gray-800">${c.conceptNo.toUpperCase()}. ${c.name}:</strong> 
+                                    <span class="text-gray-600">${c.desc.split('. ')[0]}.</span>
+                                </div>
+                            </li>`
+                        ).join('')}
+                    </ul>`
+                );
+
+                // Toggle logic
+                header.onclick = function() {
+                    const isHidden = content.classList.toggle('hidden');
+                    const iconPath = header.querySelector('[data-toggle="icon-path"]');
+                    if (isHidden) {
+                        iconPath.setAttribute('d', 'M19 9l-7 7-7-7'); // Down arrow
+                    } else {
+                        iconPath.setAttribute('d', 'M5 15l7-7 7 7'); // Up arrow
+                    }
+                };
+                
+                biCard.appendChild(header);
+                biCard.appendChild(content);
+                listContainer.appendChild(biCard);
+            });
+
+            container.appendChild(listContainer);
+        }
+
+        // --- VIEW 2: CONCEPT DESCRIPTIONS ---
+        function renderConcepts() {
+            const container = document.getElementById('view-concepts');
+            container.innerHTML = '<p class="text-gray-600 mb-6">A categorised list of all concepts, showing their definition and examples of application.</p>';
+
+            ALL_DATA.forEach(bi => {
+                const biSection = createEl('div', 'mb-8 p-5 rounded-lg bg-gray-50 border-l-4 border-accent-teal shadow-md');
+                biSection.innerHTML = `<h3 class="text-2xl font-bold text-gray-800 mb-4">${bi.id}: ${bi.name}</h3>`;
+
+                const conceptsList = createEl('div', 'space-y-4');
+
+                bi.concepts.forEach(c => {
+                    const conceptCard = createEl('div', 'bg-white p-4 rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow duration-200');
+                    
+                    // Header (Clickable)
+                    const header = createEl('div', 'cursor-pointer flex justify-between items-center',
+                        `<div class="flex-grow">
+                            <span class="text-sm font-medium text-primary-blue">${c.bigIdeaId}${c.conceptNo.toUpperCase()}</span>
+                            <h4 class="text-lg font-semibold text-gray-900">${c.name}</h4>
+                        </div>
+                        <svg class="w-5 h-5 text-gray-500 transform transition-transform duration-300" data-toggle="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path data-toggle="icon-path" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        `
+                    );
+
+                    // Content (Hidden by default)
+                    const content = createEl('div', 'mt-4 pt-3 border-t border-gray-100 hidden');
+                    
+                    // Full Description
+                    content.appendChild(createEl('p', 'text-gray-600 mb-4', `<strong>Description:</strong> ${c.desc}`));
+
+                    // Examples Section
+                    const examplesSection = createEl('div', 'p-4 bg-secondary-gray rounded-lg');
+                    examplesSection.innerHTML = `<h5 class="text-md font-bold text-accent-teal mb-3">Examples of What This Might Look Like</h5>`;
+                    
+                    if (c.examples.length > 0) {
+                        const exampleList = createEl('ul', 'list-disc list-inside space-y-1 text-sm text-gray-700');
+                        c.examples.forEach(example => {
+                            exampleList.appendChild(createEl('li', '', example));
+                        });
+                        examplesSection.appendChild(exampleList);
+                    } else {
+                        examplesSection.appendChild(createEl('p', 'text-sm text-gray-500', 'No specific examples provided for this concept.'));
+                    }
+                    
+                    content.appendChild(examplesSection);
+
+
+                    // Toggle logic
+                    header.onclick = function() {
+                        const isHidden = content.classList.toggle('hidden');
+                        const iconPath = header.querySelector('[data-toggle="icon-path"]');
+                        if (isHidden) {
+                            iconPath.setAttribute('d', 'M19 9l-7 7-7-7'); // Down arrow
+                        } else {
+                            iconPath.setAttribute('d', 'M5 15l7-7 7 7'); // Up arrow
+                        }
+                    };
+
+                    conceptCard.appendChild(header);
+                    conceptCard.appendChild(content);
+                    conceptsList.appendChild(conceptCard);
+                });
+
+                biSection.appendChild(conceptsList);
+                container.appendChild(biSection);
+            });
+        }
+
+        // --- VIEW 3: CONCEPTUAL PROGRESSION MATRIX with FILTERS ---
+        
+        // State for filters
+        let selectedConceptId = 'ALL';
+        let selectedLevels = [0, 1, 2, 3, 4];
+
+        function renderProgression() {
+            const container = document.getElementById('view-progression');
+            container.innerHTML = '';
+            
+            // --- Filter UI ---
+            const filterContainer = createEl('div', 'mb-6 p-4 bg-white rounded-xl shadow-inner border border-gray-100 flex flex-col md:flex-row space-y-4 md:space-y-0 md:space-x-6');
+
+            // 1. Concept Filter Select
+            const conceptFilterGroup = createEl('div', 'flex-1');
+            conceptFilterGroup.innerHTML = `<label for="conceptFilter" class="block text-sm font-medium text-gray-700 mb-1">Filter by Concept</label>`;
+            const conceptSelect = createEl('select', 'mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary-blue focus:border-primary-blue sm:text-sm rounded-md',);
+            conceptSelect.id = 'conceptFilter';
+
+            // Add 'ALL' option first
+            conceptSelect.add(new Option('All Concepts', 'ALL'));
+            ALL_CONCEPTS_FLAT.forEach(c => {
+                const option = new Option(`(${c.id}) ${c.name}`, c.id);
+                conceptSelect.add(option);
+            });
+            conceptSelect.value = selectedConceptId; // Set stored value
+            conceptSelect.onchange = (e) => {
+                selectedConceptId = e.target.value;
+                renderProgressionGrid();
+            };
+            conceptFilterGroup.appendChild(conceptSelect);
+            filterContainer.appendChild(conceptFilterGroup);
+
+            // 2. Level Filter Checkboxes
+            const levelFilterGroup = createEl('div', 'flex-1');
+            levelFilterGroup.innerHTML = `<span class="block text-sm font-medium text-gray-700 mb-1">Filter by Level</span>`;
+            const checkboxContainer = createEl('div', 'flex flex-wrap gap-x-4 gap-y-2');
+            
+            [0, 1, 2, 3, 4].forEach(level => {
+                const isChecked = selectedLevels.includes(level);
+                const checkboxDiv = createEl('div', 'flex items-center');
+                const checkbox = createEl('input', 'h-4 w-4 text-primary-blue border-gray-300 rounded focus:ring-primary-blue');
+                checkbox.type = 'checkbox';
+                checkbox.id = `level-${level}`;
+                checkbox.value = level;
+                checkbox.checked = isChecked;
+
+                checkbox.onchange = (e) => {
+                    const levelValue = parseInt(e.target.value);
+                    if (e.target.checked) {
+                        if (!selectedLevels.includes(levelValue)) selectedLevels.push(levelValue);
+                    } else {
+                        selectedLevels = selectedLevels.filter(l => l !== levelValue);
+                    }
+                    // Sort numerically to maintain level order
+                    selectedLevels.sort((a, b) => a - b);
+                    renderProgressionGrid();
+                };
+                
+                const label = createEl('label', 'ml-2 text-sm text-gray-700', `Level ${level}`);
+                label.htmlFor = `level-${level}`;
+
+                checkboxDiv.appendChild(checkbox);
+                checkboxDiv.appendChild(label);
+                checkboxContainer.appendChild(checkboxDiv);
+            });
+            levelFilterGroup.appendChild(checkboxContainer);
+            filterContainer.appendChild(levelFilterGroup);
+
+            container.appendChild(filterContainer);
+
+            // --- Grid Container ---
+            container.appendChild(createEl('div', 'p-4 bg-red-50 text-red-700 rounded-lg text-sm mb-6', 
+                'Note: Some Conceptual Development descriptions are reused across different concepts in the source data. This tool presents the data exactly as provided.'
+            ));
+
+            const gridContainer = createEl('div', 'overflow-x-auto');
+            gridContainer.id = 'progressionGridWrapper';
+            container.appendChild(gridContainer);
+            
+            // Initial render of the grid
+            renderProgressionGrid();
+        }
+        
+        function renderProgressionGrid() {
+            const gridWrapper = document.getElementById('progressionGridWrapper');
+            if (!gridWrapper) return; // Should not happen after initial renderProgression()
+            
+            // Clear previous grid
+            gridWrapper.innerHTML = '';
+
+            // Filter concepts based on selection
+            const filteredConcepts = ALL_CONCEPTS_FLAT.filter(c => 
+                selectedConceptId === 'ALL' || c.id === selectedConceptId
+            );
+
+            if (filteredConcepts.length === 0) {
+                 gridWrapper.appendChild(createEl('p', 'text-gray-600 p-8 text-center border rounded-lg', 'No concepts match your filter criteria.'));
+                 return;
+            }
+
+            // Define visible headers dynamically
+            const visibleLevels = selectedLevels;
+            const headers = ['Concept', ...visibleLevels.map(l => `Level ${l}`)];
+
+            // Create the Main Grid Container (Note: uses custom CSS class and dynamically calculated columns)
+            const gridContainer = createEl('div', 'progression-grid');
+            
+            // Set dynamic column template for the custom CSS class to handle filtering
+            const conceptColWidth = '200px';
+            const levelColWidth = 'minmax(150px, 1fr)';
+            const gridTemplateColumns = `${conceptColWidth} ${visibleLevels.map(() => levelColWidth).join(' ')}`;
+            gridContainer.style.gridTemplateColumns = gridTemplateColumns;
+
+
+            // 1. Add Headers (Concept + Visible Levels)
+            headers.forEach(h => {
+                const el = createEl('div', 'progression-header whitespace-nowrap', h);
+                gridContainer.appendChild(el);
+            });
+
+            // 2. Add Rows (Iterate through filtered concepts)
+            filteredConcepts.forEach(c => {
+                // Concept Column
+                const conceptEl = createEl('div', 'concept-col', 
+                    `<span class="text-xs font-semibold mr-1">${c.id}</span> ${c.name}`
+                );
+                gridContainer.appendChild(conceptEl);
+
+                // Level Columns (Only render selected levels)
+                visibleLevels.forEach(level => {
+                    const desc = c.progression[level] || 'N/A';
+                    const levelEl = createEl('div', 'progression-cell text-sm text-gray-700', desc);
+                    gridContainer.appendChild(levelEl);
+                });
+            });
+
+            gridWrapper.appendChild(gridContainer);
+        }
+        
+
+        // --- APPLICATION CONTROL ---
+
+        function setActiveView(viewId) {
+            // Hide all views
+            document.querySelectorAll('.view-content').forEach(el => el.classList.add('hidden'));
+            // Deactivate all tabs
+            document.querySelectorAll('[id^="tab-"]').forEach(el => {
+                el.classList.remove('text-primary-blue', 'border-primary-blue');
+                el.classList.add('text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300');
+                if (el.id === 'tab-concepts') {
+                     el.innerHTML = '2. Concept Descriptions'; // Update tab name dynamically
+                }
+            });
+
+            // Show the active view
+            document.getElementById(`view-${viewId}`).classList.remove('hidden');
+            // Activate the corresponding tab
+            const activeTab = document.getElementById(`tab-${viewId}`);
+            activeTab.classList.remove('text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300');
+            activeTab.classList.add('text-primary-blue', 'border-primary-blue');
+
+            // Render the content for the active view
+            switch (viewId) {
+                case 'bigIdeas':
+                    renderBigIdeas();
+                    break;
+                case 'concepts':
+                    renderConcepts();
+                    break;
+                case 'progression':
+                    renderProgression();
+                    break;
+            }
+        }
+
+        // Initialisation function
+        window.onload = function() {
+            // Start with the 'Big Ideas Overview' view active
+            setActiveView('bigIdeas');
+        };
+    </script>
+</body>
+</html>
